@@ -1,4 +1,5 @@
 use sqlx::Row;
+use bip39::{Mnemonic, Language};
 
 pub async fn load_keys(password: &str) -> Result<super::objects::Keys, String> {
 
@@ -17,6 +18,13 @@ pub async fn load_keys(password: &str) -> Result<super::objects::Keys, String> {
     .await
     .map_err(|e| format!("Error fetching profile data: {}", e))?;
 
+    let password_hash: String = row.get("password_hash");
+    let is_valid = bcrypt::verify(password, &password_hash).expect("Failed to verify password");
+    if is_valid {
+        println!("Password is valid!");
+    } else {
+        println!("Invalid password!");
+    }
     let mut key = super::super::ENCRYPTION_KEY.lock().await;
     *key = generate_pbkdf2_key(password);
 
@@ -27,7 +35,7 @@ pub async fn load_keys(password: &str) -> Result<super::objects::Keys, String> {
     let ed25519: Vec<u8> = super::encryption::decrypt_data(&row.get("ed25519"), &key).await?;
     let nonce: Vec<u8> = super::encryption::decrypt_data(&row.get("nonce"), &key).await?;
     let _user_id: String = row.get("user_id");
-    let password_hash: String = row.get("password_hash");
+    
     
     let mut d_public_key_array = [0u8; 1952];
     let mut d_private_key_array = [0u8; 4000];
@@ -48,12 +56,7 @@ pub async fn load_keys(password: &str) -> Result<super::objects::Keys, String> {
         secret: k_private_key_array,
     };
 
-    let is_valid = bcrypt::verify(password, &password_hash).expect("Failed to verify password");
-    if is_valid {
-        println!("Password is valid!");
-    } else {
-        println!("Invalid password!");
-    }
+    
     let keys = super::objects::Keys {
         ed25519_keys: ed25519,
         dilithium_keys: dilithium_keypair,
@@ -71,4 +74,13 @@ pub fn generate_pbkdf2_key(password: &str) -> Vec<u8>{
     let mut pbkdf2_key = [0u8; 32];
     pbkdf2::pbkdf2::<hmac::Hmac<sha2::Sha256>>(&password.as_bytes(), &FIXED_SALT, iterations, &mut pbkdf2_key).unwrap();
     pbkdf2_key.to_vec()
+}
+
+#[tauri::command]
+pub fn generate_mnemonic() -> Result<Vec<String>, String>  {
+    let mnemonic = Mnemonic::generate_in(Language::English, 24)
+        .map_err(|e| e.to_string())?;
+
+    let words = mnemonic.words().map(|w| w.to_string()).collect::<Vec<String>>();
+    Ok(words)
 }

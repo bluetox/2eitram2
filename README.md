@@ -1,8 +1,8 @@
-# 2EITRAM2 Messenger
+# Oblivion Messenger
 
-## What is 2EITRAM2?
+## What is Oblivion?
 
-2EITRAM2 is a decentralized messenger app. It prioritizes user anonymity and data security by leveraging cutting-edge encryption and privacy-preserving technologies. All connections are automatically routed through the Tor network, ensuring your communication remains private and untraceable. It relies on a network of community operated nodes.
+Oblivion is a decentralized messenger app. It prioritizes user anonymity and data security by leveraging cutting-edge encryption and privacy-preserving technologies. All connections are automatically routed through the Tor network, ensuring your communication remains private and untraceable. It relies on a network of community operated nodes.
 
 ## Key Features
 
@@ -19,7 +19,7 @@
 - **Password Storage**: Passwords are stored securely using bcrypt, providing robust protection against brute-force attacks.
 
 ### End-to-End Encryption (E2EE)
-Every interaction in 2EITRAM2 is encrypted, ensuring complete confidentiality:
+Every interaction in Oblivion is encrypted, ensuring complete confidentiality:
 - **Key Exchange**: Uses Kyber 1024, a quantum-resistant algorithm, to establish secure keys.
 - **Data Encryption**: Messages are encrypted using AES-GCM with unique keys and initialization vectors for each message.
 - **Message Signing**: Employs Dilithium for message authentication and integrity.
@@ -33,7 +33,7 @@ Share files securely using the same advanced encryption techniques applied to me
 - The derived key decrypts AES-GCM-encrypted messages, with unique keys and initialization vectors for each transfer.
 
 ## Modern and Reliable Architecture
-Built on the Tauri framework, 2EITRAM2 offers a good cross plateform experience.
+Built on the Tauri framework, Oblivion offers a good cross plateform experience.
 
 ## Technical Advantages
 - **No Plaintext Vulnerabilities**: Passwords, messages, and file transfers are never stored or transmitted in plaintext.
@@ -41,11 +41,11 @@ Built on the Tauri framework, 2EITRAM2 offers a good cross plateform experience.
 - **Encrypted Communication**: Unique encryption keys and initialization vectors for every message or file ensure robust security.
 - **Zero Logging Policy**: No user data or activity is logged, guaranteeing anonymity.
 
-## Why Choose 2EITRAM2?
+## Why Choose Oblivion?
 
 - **Privacy First**: No personal information is required to use the app.
 - **Secure by Design**: Leveraging Tor, SHA-256, bcrypt, and modern cryptographic algorithms, your data is always protected.
 - **Comprehensive Security**: From messages to file transfers, every aspect of your communication is encrypted end-to-end.
-- **Ease of Use**: Whether chatting anonymously or logged in, 2EITRAM2 provides a user-friendly, secure messaging experience.
+- **Ease of Use**: Whether chatting anonymously or logged in, Oblivion provides a user-friendly, secure messaging experience.
 
-With 2EITRAM2, your privacy isn’t just respected—it’s built into every line of code.
+With Oblivion, your privacy isn’t just respected—it’s built into every line of code.

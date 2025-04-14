@@ -4,7 +4,6 @@ const { isPermissionGranted, requestPermission, sendNotification, } = window.__T
 
 let permissionGranted = await isPermissionGranted();
 
-await invoke("load_shared_secrets");
 if (!permissionGranted) {
   const permission = await requestPermission();
   permissionGranted = permission === 'granted';

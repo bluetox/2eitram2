@@ -337,6 +337,38 @@
     .add-chat-form button:hover {
       background: #3700b3;
     }
+    .sidebar {
+      position: fixed;        /* Fixed so it overlays main content */
+      top: 0;
+      right: 0;               /* Can also use left: 0 for a left-side panel */
+      width: 250px;           /* Sidebar width */
+      height: 100vh;          /* Full viewport height */
+      background: #333;       /* Dark background color */
+      color: white;
+      padding: 20px;
+      transform: translateX(100%); /* Hide sidebar (off-screen to the right) */
+      transition: transform 0.3s ease;
+      z-index: 1000;          /* Ensure it sits above the container */
+    }
+    
+    /* Active class slides the sidebar into view */
+    .sidebar.active {
+      transform: translateX(0);
+    }
+    
+    /* Optional: style the open-sidebar-button */
+    .open-sidebar-button {
+      position: fixed;        /* Position it where you want */
+      top: 20px;
+      left: 20px;
+      z-index: 1100;          /* Higher than the sidebar if needed */
+      padding: 10px 15px;
+      background: #6200ea;
+      border: none;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -345,11 +377,15 @@
     <input type="password" id="passwordInput" placeholder="Password">
     <button id="submit-password">Submit</button>
   </div>
-
+  <div class="sidebar" id="sidebar">
+    <h2>Sidebar Title</h2>
+    <p>This is your sidebar content.</p>
+    <button id="close-sidebar">Close</button>
+  </div>
   <div class="container" id="container" style="display: none;">
     <div class="chat-list" id="chatList">
       <div class="chat-header">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" onclick="openSettings()">
+        <svg id="open-sidebar" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
         </svg>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
@@ -368,8 +404,6 @@
         <span id="chatTitle">Chat</span>
       </div>
       <div class="messages" id="chatMessages">
-        <div class="message message-sent">Hello!</div>
-        <div class="message message-received">Hey there!</div>
       </div>
       <div class="input-container">
         <input type="text" id="chatInput" placeholder="Type a message...">

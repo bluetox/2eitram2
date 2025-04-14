@@ -1,15 +1,67 @@
+use bip39::Mnemonic;
 use futures::TryStreamExt;
+use ring::{
+    rand::{SecureRandom, SystemRandom},
+    signature::{Ed25519KeyPair, KeyPair},
+};
+use std::collections::HashMap;
 
 #[tauri::command]
-pub async fn create_profil(name: &str) -> Result<(), String> {
+pub async fn create_profil(name: &str, password: &str, phrase: &str) -> Result<(), String> {
+
+    let rng = SystemRandom::new();
+    let mut kyber_rng = rand::rngs::OsRng;
+
+    let mnemonic = Mnemonic::parse_normalized(phrase).unwrap();
+
+    let seed = mnemonic.to_seed("");
+
+    let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng)
+        .map_err(|_| "Failed to generate Ed25519 key pair".to_string())?;  
+
+    let ed25519_keys: Ed25519KeyPair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref())
+        .map_err(|_| "Failed to parse Ed25519 key pair".to_string())?;
+
+    let dilithium_keys = pqc_dilithium::Keypair::generate(&seed[..32]);
+
+    let mut nonce = [0u8; 16];
+    SecureRandom::fill(&rng, &mut nonce)
+        .map_err(|_| "Failed to generate random bytes".to_string())?;
+
+    let kyber_keys = pqc_kyber::keypair(&mut kyber_rng).unwrap();
+
+    let full_hash_input = [
+        &dilithium_keys.public[..],
+        &ed25519_keys.public_key().as_ref()[..],
+        &nonce[..],
+    ]
+    .concat();
+    let user_id = super::utils::create_user_id_hash(&full_hash_input);
+
     let db = super::super::GLOBAL_DB
         .get()
         .ok_or_else(|| "Database not initialized".to_string())?;
-    sqlx::query("INSERT INTO profiles (profile_name) VALUES (?1)")
+
+    let hashed_password = bcrypt::hash(password, bcrypt::DEFAULT_COST).expect("Failed to hash password");
+
+    let key = super::handle_keys::generate_pbkdf2_key(password);
+    sqlx::query(
+        "INSERT INTO profiles 
+         (dilithium_public, dilithium_private, kyber_public, kyber_private, ed25519, nonce, user_id, password_hash, profile_name) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+        .bind(super::encryption::encrypt_data(&dilithium_keys.public, &key).await)
+        .bind(super::encryption::encrypt_data(dilithium_keys.expose_secret(), &key).await)
+        .bind(super::encryption::encrypt_data(&kyber_keys.public, &key).await)
+        .bind(super::encryption::encrypt_data(&kyber_keys.secret, &key).await)
+        .bind(super::encryption::encrypt_data(pkcs8_bytes.as_ref(), &key).await)
+        .bind(super::encryption::encrypt_data(&nonce, &key).await)
+        .bind(user_id)
+        .bind(hashed_password)
         .bind(name)
         .execute(db)
         .await
-        .map_err(|e| format!("Error saving chat: {}", e))?;
+        .map_err(|e| format!("Error inserting profile: {}", e))?;
 
     Ok(())
 }
@@ -101,8 +153,8 @@ pub async fn has_shared_secret(chat_id: &str) -> Result<Option<bool>, String> {
         None => Ok(None),
     }
 }
-#[tauri::command]
-pub async fn load_shared_secrets() -> Result<(), String> {
+
+pub async fn get_shared_secrets(shared_secrets: &mut HashMap<String, Vec<u8>>) -> Result<(), String> {
     let db = super::super::GLOBAL_DB
         .get()
         .ok_or_else(|| "Database not initialized".to_string())?;
@@ -114,27 +166,30 @@ pub async fn load_shared_secrets() -> Result<(), String> {
             .await
             .map_err(|e| format!("Failed to load shared secrets: {}", e))?;
 
-    let mut shared_secrets_map = super::super::SHARED_SECRETS.lock().await;
 
     for (shared_secret, dst_user_id) in rows {
         if shared_secret.len() != 32 {
             println!("Warning: Shared secret for user_id {} is not 32 bytes. Skipping.", dst_user_id);
             continue;
         }
-        shared_secrets_map.insert(dst_user_id.clone(), shared_secret.clone());
+        shared_secrets.insert(dst_user_id, shared_secret);
     }
-
     Ok(())
 }
 
-pub async fn save_shared_secret(user_id: &str, shared_secret: Vec<u8>) -> Result<String, String> {
+pub async fn save_shared_secret(source_id: &str, dst_id: &str, shared_secret: Vec<u8>) -> Result<String, String> {
     let db = super::super::GLOBAL_DB
         .get()
         .ok_or_else(|| "Database not initialized".to_string())?;
-    let current_profile = super::utils::get_profile_name().await;
+    let profil_dst: String = sqlx::query_scalar("SELECT profile_name FROM profiles WHERE user_id = ?")
+        .bind(dst_id)
+        .fetch_one(db)
+        .await
+        .map_err(|e| format!("Failed to get chat_id: {}", e))?;
+
     let chat_id: String = sqlx::query_scalar("SELECT chat_id FROM chats WHERE dst_user_id = ?1 AND chat_profil= ?2")
-        .bind(user_id)
-        .bind(current_profile)
+        .bind(&source_id)
+        .bind(&profil_dst)
         .fetch_one(db)
         .await
         .map_err(|e| format!("Failed to get chat_id: {}", e))?;

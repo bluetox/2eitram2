@@ -27,7 +27,7 @@ ring = "0.17"
 aes-gcm = "0.10.0"
 sha2 = "0.10"
 hex = "0.4"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1.44.2", features = ["full"] }
 bytes = "1.1"
 rand = "0.8"
 pqc_kyber = {version = "0.7.1", features = ["kyber1024"] }
@@ -44,6 +44,7 @@ hmac = "0.12.1"
 bcrypt = "0.17.0"
 chrono = "0.4.40"
 tokio-util = { version = "0.7", features = ["full"] }
+bip39 = { version = "2.1.0", features = ["rand"] }
 
 [profile.dev]
 incremental = true

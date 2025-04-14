@@ -1,15 +1,8 @@
 use modules::tcp::Client;
 use once_cell::sync::OnceCell;
-use pqc_dilithium::*;
-use ring::{
-    rand::{SecureRandom, SystemRandom},
-    signature::{Ed25519KeyPair, KeyPair},
-};
+use ring::signature::KeyPair;
 use std::env;
-use std::{
-    collections::HashMap,
-    sync::Arc,
-};
+use std::sync::Arc;
 use tauri::{AppHandle, Manager as _};
 use tauri::Wry;
 use tokio::sync::Mutex;
@@ -19,9 +12,6 @@ use sqlx::{migrate::MigrateDatabase, sqlite::SqlitePoolOptions, Pool, Sqlite};
 pub static GLOBAL_STORE: OnceCell<Mutex<Arc<tauri_plugin_store::Store<Wry>>>> = OnceCell::new();
 pub static PROFILE_NAME: once_cell::sync::Lazy<Mutex<String>> = once_cell::sync::Lazy::new(|| Mutex::new(String::new()));
 
-lazy_static::lazy_static! {
-    pub static ref SHARED_SECRETS: Arc<Mutex<HashMap<String, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
-}
 lazy_static::lazy_static! {
     pub static ref ENCRYPTION_KEY: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
 }
@@ -52,9 +42,9 @@ async fn generate_dilithium_keys(app: tauri::AppHandle, password: &str) -> Resul
                 *keys_lock = Some(keys);
             }
 
-            let new_client = Client::new();
+            let mut new_client = Client::new();
             new_client.connect(&app).await.unwrap();
-
+            println!("node_ss = {:?}", new_client.node_shared_secret.lock().await);
             {
                 let mut client_lock = CLIENT.lock().await;
                 client_lock.shutdown().await;
@@ -63,82 +53,7 @@ async fn generate_dilithium_keys(app: tauri::AppHandle, password: &str) -> Resul
 
             return Ok(());
         }
-        _ => println!("error"),
-    }
-    let rng = SystemRandom::new();
-    let mut kyber_rng = rand::rngs::OsRng;
-    let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng)
-        .map_err(|_| "Failed to generate Ed25519 key pair".to_string())?;
-    let ed25519_keys: Ed25519KeyPair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref())
-        .map_err(|_| "Failed to parse Ed25519 key pair".to_string())?;
-
-    let dilithium_keys: Keypair = Keypair::generate();
-    let mut nonce = [0u8; 16];
-    SecureRandom::fill(&rng, &mut nonce)
-        .map_err(|_| "Failed to generate random bytes".to_string())?;
-
-    let kyber_keys = pqc_kyber::keypair(&mut kyber_rng).unwrap();
-
-    let full_hash_input = [
-        &dilithium_keys.public[..],
-        &ed25519_keys.public_key().as_ref()[..],
-        &nonce[..],
-    ]
-    .concat();
-    let user_id = modules::utils::create_user_id_hash(&full_hash_input);
-    println!("{}", user_id);
-    let keys = modules::objects::Keys {
-        dilithium_keys,
-        ed25519_keys,
-        kyber_keys,
-        nonce,
-    };
-    
-    {
-        let mut keys_lock = KEYS.lock().await;
-        *keys_lock = Some(keys);
-    }
-
-    let new_client = Client::new();
-    new_client.connect(&app).await.unwrap();
-    {
-        let mut client_lock = CLIENT.lock().await;
-        client_lock.shutdown().await;
-        *client_lock = new_client;
-    }
-    let db = GLOBAL_DB
-        .get()
-        .ok_or_else(|| "Database not initialized".to_string())?;
-    let current_profile = modules::utils::get_profile_name().await;
-    let hashed_password = bcrypt::hash(password, bcrypt::DEFAULT_COST).expect("Failed to hash password");
-    {
-        let mut key = ENCRYPTION_KEY.lock().await;
-        *key = modules::handle_keys::generate_pbkdf2_key(password);
-    
-    sqlx::query(
-        "UPDATE profiles 
-         SET dilithium_public = ?, 
-            dilithium_private = ?, 
-            kyber_public = ?,
-            kyber_private = ?,
-            ed25519 = ?,
-            nonce = ?,
-            user_id = ?,
-            password_hash = ?
-         WHERE profile_name = ?"
-    )
-        .bind(modules::encryption::encrypt_data(&dilithium_keys.public, &key).await)
-        .bind(modules::encryption::encrypt_data(dilithium_keys.expose_secret(), &key).await)
-        .bind(modules::encryption::encrypt_data(&kyber_keys.public, &key).await)
-        .bind(modules::encryption::encrypt_data(&kyber_keys.secret, &key).await)
-        .bind(modules::encryption::encrypt_data(pkcs8_bytes.as_ref(), &key).await)
-        .bind(modules::encryption::encrypt_data(&nonce, &key).await)
-        .bind(user_id)
-        .bind(hashed_password)
-        .bind(current_profile)
-        .execute(db)
-        .await
-        .map_err(|e| format!("Error updating shared secret: {}", e))?;
+        Err(e) => println!("error : {:?}", e),
     }
     Ok(())
 }
@@ -204,7 +119,7 @@ pub fn run() {
             modules::database::set_profile_name,
             modules::database::delete_chat,
             modules::database::create_profil,
-            modules::database::load_shared_secrets
+            modules::handle_keys::generate_mnemonic
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();

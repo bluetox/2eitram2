@@ -16,25 +16,21 @@ pub async fn get_profile_name() -> String {
 pub async fn create_send_message_packet(
     dst_id_hexs: String,
     message_string: String,
-) -> Vec<u8> {
+    ss: &Vec<u8>,
+    nss: &Vec<u8>
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let keys_lock = super::super::KEYS.lock().await;
-    let keys = keys_lock.as_ref().expect("Keys not initialized");
+    let keys = keys_lock.as_ref().ok_or("Keys not initialized")?;
 
-    let dst_id_bytes = hex::decode(&dst_id_hexs).unwrap();
+    let dst_id_bytes = hex::decode(&dst_id_hexs)?;
 
-    let shared_secret = {
-        let shared_secret_locked = super::super::SHARED_SECRETS.lock().await;
-        shared_secret_locked.get(&dst_id_hexs).expect("Shared secret not found").clone()
-    };
-
-    let message = super::encryption::encrypt_message(&message_string, &shared_secret).await;
+    let message = super::encryption::encrypt_message(&message_string, ss).await;
 
     let dilithium_public_key = keys.dilithium_keys.public.clone();
     let ed25519_public_key = keys.ed25519_keys.public_key().as_ref().to_vec();
 
     let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
+        .duration_since(UNIX_EPOCH)?
         .as_secs();
     let timestamp_bytes = timestamp.to_le_bytes();
 
@@ -56,7 +52,7 @@ pub async fn create_send_message_packet(
     let dilithium_signature = keys.dilithium_keys.sign(&sign_part);
     let ed25519_signature = keys.ed25519_keys.sign(&sign_part).as_ref().to_vec();
 
-    drop(keys_lock );
+    drop(keys_lock);
 
     let mut raw_packet = BytesMut::with_capacity(
         5 + dilithium_signature.len() + ed25519_signature.len() + sign_part.len(),
@@ -66,10 +62,6 @@ pub async fn create_send_message_packet(
     raw_packet.extend_from_slice(&ed25519_signature);
     raw_packet.extend_from_slice(&sign_part);
 
-    let client = super::super::CLIENT.lock().await;
-    let node_shared_secret = client.get_node_shared_secret().await;
-    let encrypted_packet = super::encryption::encrypt_packet(&raw_packet, &node_shared_secret).await;
-    drop(client);
-
-    encrypted_packet
+    let encrypted_packet = super::encryption::encrypt_packet(&raw_packet, nss).await;
+    Ok(encrypted_packet)
 }

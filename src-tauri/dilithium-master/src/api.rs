@@ -36,16 +36,18 @@ impl Keypair {
   /// Example:
   /// ```
   /// # use pqc_dilithium::*;
-  /// let keys = Keypair::generate();
+  /// let keys = Keypair::generate(&seed);
   /// assert!(keys.public.len() == PUBLICKEYBYTES);
   /// assert!(keys.expose_secret().len() == SECRETKEYBYTES);
   /// ```
-  pub fn generate() -> Keypair {
+  pub fn generate(seed: &[u8]) -> Keypair {
+
     let mut public = [0u8; PUBLICKEYBYTES];
     let mut secret = [0u8; SECRETKEYBYTES];
-    crypto_sign_keypair(&mut public, &mut secret, None);
+    crypto_sign_keypair(&mut public, &mut secret, Some(seed));
     Keypair { public, secret }
   }
+
   pub fn load(public: [u8; PUBLICKEYBYTES], secret: [u8; SECRETKEYBYTES]) -> Keypair {
     Keypair { public, secret }
   }

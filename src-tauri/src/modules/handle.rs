@@ -13,6 +13,9 @@ pub async fn handle_ct(buffer: &Vec<u8>) -> Result<(), String> {
 
     let data_to_sign_bytes = &buffer[5 + 3293 + 64..];
 
+    let dst_id_bytes = &buffer[5 + 3293 + 64 + 1952 + 32..5 + 3293 + 64 + 1952 + 32 + 32];
+    let dst_id_hex = hex::encode(dst_id_bytes);
+
     let full_hash_input = [
         &dilihium_pub_key[..],
         &ed25519_public_key[..],
@@ -31,7 +34,7 @@ pub async fn handle_ct(buffer: &Vec<u8>) -> Result<(), String> {
         return Err("Invalid Ed25519 signature".to_string());
     }
 
-    let dst_id_hex = utils::create_user_id_hash(&full_hash_input);
+    let user_id = utils::create_user_id_hash(&full_hash_input);
 
     {
         let keys_lock = super::super::KEYS.lock().await;
@@ -40,10 +43,10 @@ pub async fn handle_ct(buffer: &Vec<u8>) -> Result<(), String> {
         let ss = pqc_kyber::decapsulate(ct, &keys.kyber_keys.secret)
             .map_err(|e| format!("Kyber decapsulation failed: {:?}", e))?;
 
-        let mut locked_shared_secrets = super::super::SHARED_SECRETS.lock().await;
-        locked_shared_secrets.insert(dst_id_hex.clone(), ss.to_vec());
-
-        super::database::save_shared_secret(dst_id_hex.clone().as_ref(), ss.to_vec())
+        let mut locked_client = super::super::CLIENT.lock().await;
+        locked_client.set_shared_secret(&user_id, &ss.to_vec()).await;
+        
+        super::database::save_shared_secret(user_id.clone().as_ref(), &dst_id_hex, ss.to_vec())
             .await
             .map_err(|e| format!("Failed to save shared secret: {:?}", e))?;
     }
@@ -65,6 +68,9 @@ pub async fn handle_kyber(buffer: &Vec<u8>) -> Result<Vec<u8>, String> {
 
     let data_to_sign_bytes = &buffer[5 + 3293 + 64..];
 
+    let dst_id_bytes = &buffer[5 + 3293 + 64 + 1952 + 32..5 + 3293 + 64 + 1952 + 32 + 32];
+    let dst_id_hex = hex::encode(dst_id_bytes);
+
     let full_hash_input = [&dilithium_pub_key[..], &ed25519_public_key[..], &src_id_nonce[..]].concat();
 
     if pqc_dilithium::verify(&dilithium_signature, &data_to_sign_bytes, &dilithium_pub_key).is_err() {
@@ -83,24 +89,24 @@ pub async fn handle_kyber(buffer: &Vec<u8>) -> Result<Vec<u8>, String> {
         Err(_) => return Err("Kyber encapsulation failed".to_string()),
     };
 
-    let dst_id_hex = utils::create_user_id_hash(&full_hash_input);
+    let user_id = utils::create_user_id_hash(&full_hash_input);
 
-    let mut locked_shared_secrets = super::super::SHARED_SECRETS.lock().await;
-    locked_shared_secrets.insert(dst_id_hex.clone(), shared_secret.to_vec());
-
-    if super::database::save_shared_secret(dst_id_hex.clone().as_ref(), shared_secret.to_vec())
+    let mut locked_client = super::super::CLIENT.lock().await;
+    locked_client.set_shared_secret(&user_id, &shared_secret.to_vec()).await;
+    drop(locked_client);
+    if super::database::save_shared_secret(&user_id.clone(), &dst_id_hex ,shared_secret.to_vec())
         .await
         .is_err()
     {
         return Err("Failed to save shared secret".to_string());
     }
 
-    let dst_id_bytes = match hex::decode(dst_id_hex) {
+    let source_id_bytes = match hex::decode(user_id) {
         Ok(bytes) => bytes,
         Err(_) => return Err("Failed to decode dst_id_hex".to_string()),
     };
     
-    let response = super::tcp::send_cyphertext(dst_id_bytes, ciphertext.to_vec()).await;
+    let response = super::tcp::send_cyphertext(source_id_bytes, ciphertext.to_vec()).await;
 
     Ok(response)
 }
@@ -136,18 +142,18 @@ pub async fn handle_message(buffer: &Vec<u8>, app: &AppHandle) -> Result<(), Str
 
     let source_id = utils::create_user_id_hash(&full_hash_input);
 
-    let locked_shared_secrets = super::super::SHARED_SECRETS.lock().await;
-    let shared_secret = match locked_shared_secrets.get(&source_id) {
-        Some(secret) => secret.clone(),
-        None => {
-            println!("[ERROR] No shared secret found for {}", source_id);
-            return Err(format!("No shared secret found for {}", source_id));
-        }
-    };
-
+    let locked_client = super::super::CLIENT.lock().await;
+    let ss = locked_client
+        .get_shared_secret(&source_id)
+        .await
+        .map_err(|e| {
+            println!("Failed to get shared_secret: {}", e);
+            e
+    })?;
+    drop(locked_client);
     match encryption::decrypt_message(
         &buffer[5 + 3293 + 64 + 1952 + 32 + 32 + 16 + 8..].to_vec(),
-        &shared_secret,
+        &ss,
     )
     .await
     {
