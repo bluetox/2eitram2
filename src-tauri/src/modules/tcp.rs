@@ -270,7 +270,7 @@ pub async fn establish_ss_with_node(read_half: &mut tokio::io::ReadHalf<TcpStrea
     let mut message = BytesMut::with_capacity(1573);
     let total_size =  1573 as u16;
     let mut rng =   rand::rngs::OsRng;
-    let keypair = pqc_kyber::Keypair::generate(&mut rng).unwrap();
+    let keypair = safe_pqc_kyber::Keypair::generate(&mut rng);
 
     message.extend_from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00]);
     message[1..3].copy_from_slice(&total_size.to_le_bytes());
@@ -283,7 +283,7 @@ pub async fn establish_ss_with_node(read_half: &mut tokio::io::ReadHalf<TcpStrea
 
     let ct = &chunk[5 .. 5 + 1568];
 
-    let ss = pqc_kyber::decapsulate(ct, &keypair.secret).unwrap().to_vec();
+    let ss = safe_pqc_kyber::decapsulate(ct, &keypair.secret).unwrap().to_vec();
     return ss;
 }
 

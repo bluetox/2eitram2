@@ -40,7 +40,7 @@ pub async fn handle_ct(buffer: &Vec<u8>) -> Result<(), String> {
         let keys_lock = super::super::KEYS.lock().await;
         let keys = keys_lock.as_ref().expect("Keys not initialized");
 
-        let ss = pqc_kyber::decapsulate(ct, &keys.kyber_keys.secret)
+        let ss = safe_pqc_kyber::decapsulate(ct, &keys.kyber_keys.secret)
             .map_err(|e| format!("Kyber decapsulation failed: {:?}", e))?;
 
         let mut locked_client = super::super::TCP_CLIENT.lock().await;
@@ -84,7 +84,7 @@ pub async fn handle_kyber(buffer: &Vec<u8>) -> Result<Vec<u8>, String> {
         return Err("Invalid Ed25519 signature".to_string());
     }
 
-    let (ciphertext, shared_secret) = match pqc_kyber::encapsulate(&kyber_public_key, &mut rng) {
+    let (ciphertext, shared_secret) = match safe_pqc_kyber::encapsulate(&kyber_public_key, &mut rng) {
         Ok(result) => result,
         Err(_) => return Err("Kyber encapsulation failed".to_string()),
     };

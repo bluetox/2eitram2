@@ -61,7 +61,7 @@ pub async fn load_keys(password: &str) -> Result<super::objects::Keys, String> {
 
     let dilithium_keypair = pqc_dilithium::Keypair::load(d_public_key_array, d_private_key_array);
     let ed25519: ring::signature::Ed25519KeyPair = ring::signature::Ed25519KeyPair::from_pkcs8(&ed25519).map_err(|e| e.to_string())?;
-    let kyber_keys = pqc_kyber::Keypair {
+    let kyber_keys = safe_pqc_kyber::Keypair {
         public: k_public_key_array,
         secret: k_private_key_array,
     };

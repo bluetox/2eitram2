@@ -43,7 +43,7 @@ pub async fn create_profil(name: &str, mut password: String, mut phrase: String)
     SecureRandom::fill(&rng, &mut nonce)
         .map_err(|_| "Failed to generate random bytes".to_string())?;
 
-    let kyber_keys = pqc_kyber::keypair(&mut kyber_rng).map_err(|_| "Failed to generate kyber keypair")?;
+    let kyber_keys = safe_pqc_kyber::keypair(&mut kyber_rng);
 
     let full_hash_input = [
         &dilithium_keys.public[..],

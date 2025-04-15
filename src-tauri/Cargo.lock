@@ -3220,16 +3220,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pqc_kyber"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b23e1823e8a78ad67990c5cb843d5eba75ab3b8a44d041f3814fde89463dc6f"
-dependencies = [
- "rand_core 0.6.4",
- "zeroize",
-]
-
-[[package]]
 name = "precomputed-hash"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3606,6 +3596,14 @@ name = "ryu"
 version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28d3b2b1366ec20994f1fd18c3c594f05c5dd4bc44d8bb0c1c632c8d6829481f"
+
+[[package]]
+name = "safe_pqc_kyber"
+version = "0.6.3"
+dependencies = [
+ "rand_core 0.6.4",
+ "zeroize",
+]
 
 [[package]]
 name = "same-file"
@@ -4421,9 +4419,9 @@ dependencies = [
  "once_cell",
  "pbkdf2",
  "pqc_dilithium",
- "pqc_kyber",
  "rand 0.8.5",
  "ring",
+ "safe_pqc_kyber",
  "serde",
  "serde_json",
  "sha2",

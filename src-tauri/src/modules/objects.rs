@@ -3,7 +3,7 @@ use sqlx::prelude::FromRow;
 pub struct Keys {
     pub dilithium_keys: pqc_dilithium::Keypair,
     pub ed25519_keys: ring::signature::Ed25519KeyPair,
-    pub kyber_keys: pqc_kyber::Keypair,
+    pub kyber_keys: safe_pqc_kyber::Keypair,
     pub nonce: [u8; 16],
 }
 
