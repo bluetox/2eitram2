@@ -38,7 +38,7 @@ hmac = "0.12.1"
 chrono = "0.4.40"
 
 pqc_dilithium = { path = "./dilithium-master", features = ["mode3", "random_signing"] }
-safe_pqc_kyber = { path = "./kyber", features = ["kyber1024", "zeroize"]}
+safe_pqc_kyber = { path = "./kyber", features = ["kyber1024", "zeroize"] }
 ring = "0.17"
 aes-gcm = "0.10.0"
 sha2 = "0.10"
