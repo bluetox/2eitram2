@@ -20,31 +20,36 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
+tauri-plugin-store = "2.2.0"
+tauri-plugin-notification = "2"
+
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-pqc_dilithium = { path = "./dilithium-master" }
-ring = "0.17"
-aes-gcm = "0.10.0"
-sha2 = "0.10"
 hex = "0.4"
 tokio = { version = "1.44.2", features = ["full"] }
+tokio-util = { version = "0.7", features = ["full"] }
 bytes = "1.1"
-rand = "0.8"
-pqc_kyber = {version = "0.7.1", features = ["kyber1024"] }
-lazy_static = "1.4"
-tauri-plugin-store = "2.2.0"
 once_cell = "1.21.1"
+lazy_static = "1.4"
 sqlx = { version = "0.8.3", features = ["sqlite", "runtime-tokio"] }
 futures = "0.3.31"
 uuid = { version = "1.16.0", features = ["v4"] }
-zeroize = { version = "1", features = ["zeroize_derive"] }
-tauri-plugin-notification = "2"
-pbkdf2 = "0.12.2"
 hmac = "0.12.1"
-bcrypt = "0.17.0"
 chrono = "0.4.40"
-tokio-util = { version = "0.7", features = ["full"] }
-bip39 = { version = "2.1.0", features = ["rand"] }
+
+pqc_dilithium = { path = "./dilithium-master", features = ["mode3", "random_signing"] }
+pqc_kyber = {version = "0.7.1", features = ["kyber1024", "zeroize"] }
+ring = "0.17"
+aes-gcm = "0.10.0"
+sha2 = "0.10"
+pbkdf2 = "0.12.2"
+bcrypt = {version = "0.17.0", features = ["zeroize"] }
+bip39 = { version = "2.1.0", features = ["rand", "zeroize"] }
+
+rand = "0.8"
+zeroize = { version = "1", features = ["zeroize_derive"] }
+
+
 
 [profile.dev]
 incremental = true

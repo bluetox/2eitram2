@@ -2,13 +2,27 @@ const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 const { isPermissionGranted, requestPermission, sendNotification, } = window.__TAURI__.notification;
 
+const toggleBtn = document.getElementById('open-sidebar');
+const disconnect = document.getElementById('disconnect');
+disconnect.addEventListener('click', () => {
+  window.location = "index.html";
+})
+const sidebar = document.getElementById('sidebar');
+const closeSidebar = document.getElementById('close-sidebar');
+closeSidebar.addEventListener('click', () => {
+  sidebar.classList.remove('active');
+});;
+
+  toggleBtn.addEventListener('click', () => {
+    sidebar.classList.toggle('active');
+  });
+
 let permissionGranted = await isPermissionGranted();
 
 if (!permissionGranted) {
   const permission = await requestPermission();
   permissionGranted = permission === 'granted';
 }
-
 
 if (permissionGranted) {
   sendNotification({ title: 'Tauri', body: 'Tauri is awesome!' });

@@ -1,10 +1,20 @@
 use sqlx::Row;
 use bip39::{Mnemonic, Language};
+use super::{
+    utils,
+    encryption,
+    super::{
+        GLOBAL_DB,
+        ENCRYPTION_KEY
+    }
+};
+
+const PBKDF2_ITER : u32 = 2_000;
 
 pub async fn load_keys(password: &str) -> Result<super::objects::Keys, String> {
 
-    let current_profile = super::utils::get_profile_name().await;
-    let db = super::super::GLOBAL_DB
+    let current_profile = utils::get_profile_name().await;
+    let db = GLOBAL_DB
     .get()
     .ok_or_else(|| "Database not initialized".to_string())?;
 
@@ -25,15 +35,15 @@ pub async fn load_keys(password: &str) -> Result<super::objects::Keys, String> {
     } else {
         println!("Invalid password!");
     }
-    let mut key = super::super::ENCRYPTION_KEY.lock().await;
-    *key = generate_pbkdf2_key(password);
+    let mut key = ENCRYPTION_KEY.lock().await;
+    *key = generate_pbkdf2_key(password)?;
 
-    let dilithium_public: Vec<u8> = super::encryption::decrypt_data(&row.get("dilithium_public"), &key).await?;
-    let dilithium_private: Vec<u8> = super::encryption::decrypt_data(&row.get("dilithium_private"), &key).await?;
-    let kyber_public: Vec<u8> = super::encryption::decrypt_data(&row.get("kyber_public"), &key).await?;
-    let kyber_private: Vec<u8> = super::encryption::decrypt_data(&row.get("kyber_private"), &key).await?;
-    let ed25519: Vec<u8> = super::encryption::decrypt_data(&row.get("ed25519"), &key).await?;
-    let nonce: Vec<u8> = super::encryption::decrypt_data(&row.get("nonce"), &key).await?;
+    let dilithium_public: Vec<u8> = encryption::decrypt_data(&row.get("dilithium_public"), &key).await?;
+    let dilithium_private: Vec<u8> = encryption::decrypt_data(&row.get("dilithium_private"), &key).await?;
+    let kyber_public: Vec<u8> = encryption::decrypt_data(&row.get("kyber_public"), &key).await?;
+    let kyber_private: Vec<u8> = encryption::decrypt_data(&row.get("kyber_private"), &key).await?;
+    let ed25519: Vec<u8> = encryption::decrypt_data(&row.get("ed25519"), &key).await?;
+    let nonce: Vec<u8> = encryption::decrypt_data(&row.get("nonce"), &key).await?;
     let _user_id: String = row.get("user_id");
     
     
@@ -66,14 +76,17 @@ pub async fn load_keys(password: &str) -> Result<super::objects::Keys, String> {
     Ok(keys)
 }
 
-pub fn generate_pbkdf2_key(password: &str) -> Vec<u8>{
-    let iterations = std::num::NonZeroU32::new(100_000).unwrap().get();
-
+pub fn generate_pbkdf2_key(password: &str) -> Result<Vec<u8>, String> {
     const FIXED_SALT: &[u8] = b"this is my fixed salt!";
 
     let mut pbkdf2_key = [0u8; 32];
-    pbkdf2::pbkdf2::<hmac::Hmac<sha2::Sha256>>(&password.as_bytes(), &FIXED_SALT, iterations, &mut pbkdf2_key).unwrap();
-    pbkdf2_key.to_vec()
+    pbkdf2::pbkdf2::<hmac::Hmac<sha2::Sha256>>(
+        password.as_bytes(),
+        FIXED_SALT,
+        PBKDF2_ITER,
+        &mut pbkdf2_key,
+    ).map_err(|_| "Failed to generate pbkdf2 key")?;
+    Ok(pbkdf2_key.to_vec())
 }
 
 #[tauri::command]

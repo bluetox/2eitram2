@@ -10,14 +10,17 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
-pub struct Client {
+
+const NODE_ADDRESS: &str = "127.0.0.1";
+
+pub struct TcpClient {
     write_half: Arc<Mutex<Option<tokio::io::WriteHalf<TcpStream>>>>,
     stop_flag: Arc<AtomicBool>,
     pub shared_secrets: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     pub node_shared_secret: Arc<Mutex<Vec<u8>>>,
 }
 
-impl Client {
+impl TcpClient {
     pub fn new() -> Self {
         Self {
             write_half: Arc::new(Mutex::new(None)),
@@ -26,35 +29,39 @@ impl Client {
             node_shared_secret: Arc::new(Mutex::new(Vec::new())),
         }
     }
+    
 
-    pub async fn connect(&mut self, app: &AppHandle) -> io::Result<()> {
+    pub async fn connect(&mut self, app: &AppHandle) -> Result<(), String> {
+        const NODE_PORT: u16 = 32775;
 
         self.load_shared_secrets().await;
-
-        let mut stream = TcpStream::connect("148.113.191.144:32775").await?;
+    
+        let mut stream = TcpStream::connect(format!("{}:{}", NODE_ADDRESS, NODE_PORT)).await
+            .map_err(|e| format!("Failed to connect to main node: {}", e))?;
+    
         let get_nodes_packet = create_get_nodes_packet().await;
-        stream.write_all(&get_nodes_packet).await?;
-
+        stream.write_all(&get_nodes_packet).await
+            .map_err(|e| format!("Failed to write get node packet: {}", e))?;
+    
         let mut chunk = vec![0u8; 2048];
-        let bytes_read = stream.read(&mut chunk).await?;
-
-        stream.shutdown().await?;
-
+        let bytes_read = stream.read(&mut chunk).await
+            .map_err(|e| format!("Failed to read assigned nodes: {}", e))?;
+        stream.shutdown().await
+            .map_err(|e| format!("Failed shutdown socket: {}", e))?;
+    
         chunk.truncate(bytes_read);
-
-        let buffer_str = match std::str::from_utf8(&chunk) {
-            Ok(s) => s,
-            Err(_) => return Ok(()),
-        };
-
+    
+        let buffer_str = std::str::from_utf8(&chunk)
+            .map_err(|_| "Invalid UTF-8 received from main node")?;
+    
         let ips: Vec<String> = buffer_str
             .split_whitespace()
             .map(|s| s.to_string())
             .collect();
+    
         let mut successful_connection = None;
-
         for ip in ips {
-            match TcpStream::connect(format!("{}:32775", ip)).await {
+            match TcpStream::connect(format!("{}:{}", ip, NODE_PORT)).await {
                 Ok(new_stream) => {
                     println!("Connected to node: {}", ip);
                     successful_connection = Some(new_stream);
@@ -65,38 +72,39 @@ impl Client {
                 }
             }
         }
-        
-        if let Some(stream) = successful_connection {
-            let (mut read_half, mut write_half) = tokio::io::split(stream);
-            {
-                let ss = establish_ss_with_node(&mut read_half, &mut write_half).await;
-                let mut locked_ss = self.node_shared_secret.lock().await;
-                *locked_ss = ss.clone();
-            
-            let buffer = create_server_connect_packet(ss).await.unwrap();
-            write_half.write_all(&buffer).await?;
-            }
-            {
-                let mut current = self.write_half.lock().await;
-                *current = Some(write_half);
-            }
-            println!("Starting listener");
-            let stop_flag = Arc::new(AtomicBool::new(false));
-            let flag_clone: Arc<AtomicBool> = Arc::clone(&stop_flag);
-            tokio::spawn({
-                let app = app.clone();
-                async move {
-                    listen(&mut read_half, &app, flag_clone).await.unwrap();
-                    println!("CONNEXION ENDED");
-                }
-            });
-            
-        } else {
-            println!("Failed to connect to any nodes.");
+    
+        let stream = successful_connection.ok_or("Failed to connect to any nodes.".to_string())?;
+    
+        let (mut read_half, mut write_half) = tokio::io::split(stream);
+        {
+            let ss = establish_ss_with_node(&mut read_half, &mut write_half).await;
+            let mut locked_ss = self.node_shared_secret.lock().await;
+            *locked_ss = ss.clone();
+    
+            let buffer = create_server_connect_packet(ss).await?;
+            write_half.write_all(&buffer).await
+                .map_err(|e| format!("Failed to write server_connect: {}", e))?;
         }
-
+        {
+            let mut current = self.write_half.lock().await;
+            *current = Some(write_half);
+        }
+    
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let flag_clone = Arc::clone(&stop_flag);
+        tokio::spawn({
+            let app = app.clone();
+            async move {
+                if let Err(e) = listen(&mut read_half, &app, flag_clone).await {
+                    eprintln!("Listener error: {:?}", e);
+                }
+                println!("CONNEXION ENDED");
+            }
+        });
+    
         Ok(())
     }
+    
     
     pub async fn send_message(&mut self, dst_id_hexs: String, message_string: String) {
         {
@@ -106,7 +114,6 @@ impl Client {
             .await
             .unwrap();
         {
-            println!("can't get write half");
             let mut locked = self.write_half.lock().await;
             if let Some(ref mut writer) = *locked {
                 writer.write_all(&encrypted_packet).await.unwrap();
@@ -179,7 +186,6 @@ impl Client {
 
     pub async fn get_shared_secret(&self, user_id: &str) -> Result<Vec<u8>, String> {
         let locked_ss = self.shared_secrets.lock().await;
-        println!("{:?}", &locked_ss);
         match locked_ss.get(user_id) {
             Some(secret) => Ok(secret.clone()),
             None => Err(format!("Shared secret not found for user_id: {}", user_id)),
@@ -216,8 +222,7 @@ impl Client {
 #[tauri::command]
 pub async fn send_message(dst_id_hexs: String, message_string: String) {
     {
-        println!("can't lock client");
-        let mut client = super::super::CLIENT.lock().await;
+        let mut client = super::super::TCP_CLIENT.lock().await;
         client.send_message(dst_id_hexs, message_string).await;
     }
 }
@@ -365,7 +370,7 @@ pub async fn send_cyphertext(dst_id_bytes: Vec<u8>, cyphertext: Vec<u8>) -> Vec<
     raw_packet.extend_from_slice(&ed25519_signature);
     raw_packet.extend_from_slice(&sign_part);
 
-    let client = super::super::CLIENT.lock().await;
+    let client = super::super::TCP_CLIENT.lock().await;
     let node_shared_secret = client.get_node_shared_secret().await;
     let encrypted_packet = super::encryption::encrypt_packet(&raw_packet, &node_shared_secret).await;
     drop(client);
@@ -408,7 +413,7 @@ async fn listen(
                     2 => {
                         let response = super::handle::handle_kyber(&buffer[..payload_size].to_vec()).await.unwrap();
                         {
-                            let mut client = super::super::CLIENT.lock().await;
+                            let mut client = super::super::TCP_CLIENT.lock().await;
                             client.write(&response).await;
                         }
                     }
@@ -441,7 +446,7 @@ async fn listen(
 #[tauri::command]
 pub async fn establish_ss(dst_user_id: String) {
     {
-        let mut client = super::super::CLIENT.lock().await;
+        let mut client = super::super::TCP_CLIENT.lock().await;
         client.send_kyber_key(hex::decode(dst_user_id).unwrap()).await;
     }
 }

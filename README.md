@@ -15,17 +15,14 @@ Oblivion is a decentralized messenger app. It prioritizes user anonymity and dat
 - **Open source and easy to customize**: We aim to provide the user all the tools he needs to easily customize his messaging experience without compromising annonymity.
 
 ### Advanced local Security
-- **Password encryption**: When first connecting you get Mnemonic words and a password the words are used to recover the password and the password itself is used to encrypt the entirity of your data. Make sure to put a strong one.
+- **Password encryption**: When first connecting you get Mnemonic words and a password the words are used to recover the password or keys and the password itself is used to encrypt the entirity of your data. Make sure to put a strong one.
 - **Password Storage**: Passwords are stored securely using bcrypt, providing robust protection against brute-force attacks.
 
 ### End-to-End Encryption (E2EE)
 Every interaction in Oblivion is encrypted, ensuring complete confidentiality:
 - **Key Exchange**: Uses Kyber 1024, a quantum-resistant algorithm, to establish secure keys.
 - **Data Encryption**: Messages are encrypted using AES-GCM with unique keys and initialization vectors for each message.
-- **Message Signing**: Employs Dilithium for message authentication and integrity.
-
-### Encrypted File Transfer
-Share files securely using the same advanced encryption techniques applied to messages. Files are encrypted with AES-GCM, ensuring confidentiality during transfer.
+- **Message Signing**: Employs both Dilithium and Ed25519 for message authentication and integrity.
 
 ### User-Defined Password Protection
 - Users define a password to encrypt their messages and shared secrets.

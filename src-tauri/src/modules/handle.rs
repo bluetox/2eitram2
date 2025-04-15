@@ -1,4 +1,4 @@
-use super::{encryption, utils};
+use super::{encryption, utils, tcp};
 use rand::rngs::OsRng;
 use tauri::{AppHandle, Emitter};
 
@@ -43,7 +43,7 @@ pub async fn handle_ct(buffer: &Vec<u8>) -> Result<(), String> {
         let ss = pqc_kyber::decapsulate(ct, &keys.kyber_keys.secret)
             .map_err(|e| format!("Kyber decapsulation failed: {:?}", e))?;
 
-        let mut locked_client = super::super::CLIENT.lock().await;
+        let mut locked_client = super::super::TCP_CLIENT.lock().await;
         locked_client.set_shared_secret(&user_id, &ss.to_vec()).await;
         
         super::database::save_shared_secret(user_id.clone().as_ref(), &dst_id_hex, ss.to_vec())
@@ -91,7 +91,7 @@ pub async fn handle_kyber(buffer: &Vec<u8>) -> Result<Vec<u8>, String> {
 
     let user_id = utils::create_user_id_hash(&full_hash_input);
 
-    let mut locked_client = super::super::CLIENT.lock().await;
+    let mut locked_client = super::super::TCP_CLIENT.lock().await;
     locked_client.set_shared_secret(&user_id, &shared_secret.to_vec()).await;
     drop(locked_client);
     if super::database::save_shared_secret(&user_id.clone(), &dst_id_hex ,shared_secret.to_vec())
@@ -106,7 +106,7 @@ pub async fn handle_kyber(buffer: &Vec<u8>) -> Result<Vec<u8>, String> {
         Err(_) => return Err("Failed to decode dst_id_hex".to_string()),
     };
     
-    let response = super::tcp::send_cyphertext(source_id_bytes, ciphertext.to_vec()).await;
+    let response = tcp::send_cyphertext(source_id_bytes, ciphertext.to_vec()).await;
 
     Ok(response)
 }
@@ -142,7 +142,7 @@ pub async fn handle_message(buffer: &Vec<u8>, app: &AppHandle) -> Result<(), Str
 
     let source_id = utils::create_user_id_hash(&full_hash_input);
 
-    let locked_client = super::super::CLIENT.lock().await;
+    let locked_client = super::super::TCP_CLIENT.lock().await;
     let ss = locked_client
         .get_shared_secret(&source_id)
         .await
@@ -158,14 +158,14 @@ pub async fn handle_message(buffer: &Vec<u8>, app: &AppHandle) -> Result<(), Str
     .await
     {
         Ok(decrypted_message) => {
-            super::database::save_received_message(&source_id, &dst_id_hex, &decrypted_message).await.unwrap();
+            super::database::save_received_message(&source_id, &dst_id_hex, &decrypted_message).await?;
             app.emit(
                 "received-message",
                 format!(
                     "{{\"source\": \"{}\", \"message\": \"{}\"}}",
                     source_id, decrypted_message
                 ),
-            ).unwrap();
+            ).map_err(|_| "Failed to emit received message to webview")?;
             Ok(())
         }
         Err(e) => {

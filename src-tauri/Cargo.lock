@@ -347,6 +347,7 @@ dependencies = [
  "rand_core 0.6.4",
  "serde",
  "unicode-normalization",
+ "zeroize",
 ]
 
 [[package]]
@@ -3225,6 +3226,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b23e1823e8a78ad67990c5cb843d5eba75ab3b8a44d041f3814fde89463dc6f"
 dependencies = [
  "rand_core 0.6.4",
+ "zeroize",
 ]
 
 [[package]]

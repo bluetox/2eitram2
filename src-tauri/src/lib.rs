@@ -1,4 +1,4 @@
-use modules::tcp::Client;
+use modules::tcp::TcpClient;
 use once_cell::sync::OnceCell;
 use ring::signature::KeyPair;
 use std::env;
@@ -16,7 +16,7 @@ lazy_static::lazy_static! {
     pub static ref ENCRYPTION_KEY: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
 }
 lazy_static::lazy_static! {
-    pub static ref CLIENT: Arc<Mutex<modules::tcp::Client>> = Arc::new(Mutex::new(Client::new()));
+    pub static ref TCP_CLIENT: Arc<Mutex<modules::tcp::TcpClient>> = Arc::new(Mutex::new(TcpClient::new()));
 }
 lazy_static::lazy_static! {
     pub static ref KEYS : Arc<Mutex<Option<modules::objects::Keys>>> = Arc::new(Mutex::new(None));
@@ -35,18 +35,18 @@ async fn generate_dilithium_keys(app: tauri::AppHandle, password: &str) -> Resul
             .concat();
             let user_id = modules::utils::create_user_id_hash(&full_hash_input);
     
-            println!("{}", user_id);
+            println!("User id: {}", user_id);
 
             {
                 let mut keys_lock = KEYS.lock().await;
                 *keys_lock = Some(keys);
             }
 
-            let mut new_client = Client::new();
+            let mut new_client = TcpClient::new();
             new_client.connect(&app).await.unwrap();
-            println!("node_ss = {:?}", new_client.node_shared_secret.lock().await);
+
             {
-                let mut client_lock = CLIENT.lock().await;
+                let mut client_lock = TCP_CLIENT.lock().await;
                 client_lock.shutdown().await;
                 *client_lock = new_client;
             }

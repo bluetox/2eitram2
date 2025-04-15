@@ -337,31 +337,53 @@
     .add-chat-form button:hover {
       background: #3700b3;
     }
-    .sidebar {
-      position: fixed;        /* Fixed so it overlays main content */
-      top: 0;
-      right: 0;               /* Can also use left: 0 for a left-side panel */
-      width: 250px;           /* Sidebar width */
-      height: 100vh;          /* Full viewport height */
-      background: #333;       /* Dark background color */
-      color: white;
-      padding: 20px;
-      transform: translateX(100%); /* Hide sidebar (off-screen to the right) */
-      transition: transform 0.3s ease;
-      z-index: 1000;          /* Ensure it sits above the container */
-    }
-    
-    /* Active class slides the sidebar into view */
-    .sidebar.active {
-      transform: translateX(0);
-    }
-    
-    /* Optional: style the open-sidebar-button */
+    /* Modern Sidebar Styling */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 260px;
+  height: 100vh;
+  background: #1a1a2e;               /* Deep blue-ish background */
+  color: #eaeaea;                    /* Light text color */
+  padding: 2rem 1rem;
+  transform: translateX(-105%);      /* Start fully off-screen */
+  transition: transform 0.4s cubic-bezier(0.6, 0.04, 0.98, 0.335); /* Smooth transition */
+  z-index: 1000;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.5);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* When the sidebar is active, slide it in */
+.sidebar.active {
+  transform: translateX(0);
+}
+
+/* Modern Buttons for Navigation */
+.sidebar-button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  color: inherit;
+  text-align: left;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.1s ease-in;
+}
+
+.sidebar-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
     .open-sidebar-button {
-      position: fixed;        /* Position it where you want */
+      position: fixed;
       top: 20px;
       left: 20px;
-      z-index: 1100;          /* Higher than the sidebar if needed */
+      z-index: 1100;
       padding: 10px 15px;
       background: #6200ea;
       border: none;
@@ -377,13 +399,16 @@
     <input type="password" id="passwordInput" placeholder="Password">
     <button id="submit-password">Submit</button>
   </div>
-  <div class="sidebar" id="sidebar">
-    <h2>Sidebar Title</h2>
-    <p>This is your sidebar content.</p>
-    <button id="close-sidebar">Close</button>
-  </div>
+  
   <div class="container" id="container" style="display: none;">
+    <div class="sidebar" id="sidebar">
+      <h2>Sidebar Title</h2>
+      <p>This is your sidebar content.</p>
+      <div class="sidebar-button" id="disconnect">Disconnect</div>
+      <div class="sidebar-button" id="close-sidebar">Close</div>
+    </div>
     <div class="chat-list" id="chatList">
+      
       <div class="chat-header">
         <svg id="open-sidebar" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />

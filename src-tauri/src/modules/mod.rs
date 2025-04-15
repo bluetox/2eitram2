@@ -5,3 +5,4 @@ pub mod tcp;
 pub mod utils;
 pub mod database;
 pub mod handle_keys;
+pub mod app;

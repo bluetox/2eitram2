@@ -1,20 +1,33 @@
 use bip39::Mnemonic;
 use futures::TryStreamExt;
+use zeroize::Zeroize;
 use ring::{
     rand::{SecureRandom, SystemRandom},
     signature::{Ed25519KeyPair, KeyPair},
 };
 use std::collections::HashMap;
+use super::{
+    objects, 
+    encryption, 
+    utils,
+    super::{
+        GLOBAL_DB,
+        PROFILE_NAME,
+        ENCRYPTION_KEY
+    }
+};
 
 #[tauri::command]
-pub async fn create_profil(name: &str, password: &str, phrase: &str) -> Result<(), String> {
+pub async fn create_profil(name: &str, mut password: String, mut phrase: String) -> Result<(), String> {
 
     let rng = SystemRandom::new();
     let mut kyber_rng = rand::rngs::OsRng;
 
-    let mnemonic = Mnemonic::parse_normalized(phrase).unwrap();
+    let mnemonic = Mnemonic::parse_normalized(&phrase).map_err(|_| "Invalid recovery phrase")?;
 
-    let seed = mnemonic.to_seed("");
+    let mut seed = mnemonic.to_seed("");
+
+    phrase.zeroize();
 
     let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng)
         .map_err(|_| "Failed to generate Ed25519 key pair".to_string())?;  
@@ -24,11 +37,13 @@ pub async fn create_profil(name: &str, password: &str, phrase: &str) -> Result<(
 
     let dilithium_keys = pqc_dilithium::Keypair::generate(&seed[..32]);
 
+    seed.zeroize();
+
     let mut nonce = [0u8; 16];
     SecureRandom::fill(&rng, &mut nonce)
         .map_err(|_| "Failed to generate random bytes".to_string())?;
 
-    let kyber_keys = pqc_kyber::keypair(&mut kyber_rng).unwrap();
+    let kyber_keys = pqc_kyber::keypair(&mut kyber_rng).map_err(|_| "Failed to generate kyber keypair")?;
 
     let full_hash_input = [
         &dilithium_keys.public[..],
@@ -36,40 +51,41 @@ pub async fn create_profil(name: &str, password: &str, phrase: &str) -> Result<(
         &nonce[..],
     ]
     .concat();
-    let user_id = super::utils::create_user_id_hash(&full_hash_input);
+    let user_id = utils::create_user_id_hash(&full_hash_input);
 
-    let db = super::super::GLOBAL_DB
+    let db = GLOBAL_DB
         .get()
         .ok_or_else(|| "Database not initialized".to_string())?;
 
-    let hashed_password = bcrypt::hash(password, bcrypt::DEFAULT_COST).expect("Failed to hash password");
+    let hashed_password = bcrypt::hash(&password, bcrypt::DEFAULT_COST).expect("Failed to hash password");
 
-    let key = super::handle_keys::generate_pbkdf2_key(password);
+    let mut key = super::handle_keys::generate_pbkdf2_key(&password)?;
+    password.zeroize();
     sqlx::query(
         "INSERT INTO profiles 
          (dilithium_public, dilithium_private, kyber_public, kyber_private, ed25519, nonce, user_id, password_hash, profile_name) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
-        .bind(super::encryption::encrypt_data(&dilithium_keys.public, &key).await)
-        .bind(super::encryption::encrypt_data(dilithium_keys.expose_secret(), &key).await)
-        .bind(super::encryption::encrypt_data(&kyber_keys.public, &key).await)
-        .bind(super::encryption::encrypt_data(&kyber_keys.secret, &key).await)
-        .bind(super::encryption::encrypt_data(pkcs8_bytes.as_ref(), &key).await)
-        .bind(super::encryption::encrypt_data(&nonce, &key).await)
+        .bind(encryption::encrypt_data(&dilithium_keys.public, &key).await)
+        .bind(encryption::encrypt_data(dilithium_keys.expose_secret(), &key).await)
+        .bind(encryption::encrypt_data(&kyber_keys.public, &key).await)
+        .bind(encryption::encrypt_data(&kyber_keys.secret, &key).await)
+        .bind(encryption::encrypt_data(pkcs8_bytes.as_ref(), &key).await)
+        .bind(encryption::encrypt_data(&nonce, &key).await)
         .bind(user_id)
         .bind(hashed_password)
         .bind(name)
         .execute(db)
         .await
         .map_err(|e| format!("Error inserting profile: {}", e))?;
-
+    key.zeroize();
     Ok(())
 }
 
 #[tauri::command]
 pub async fn set_profile_name(name: String) {
     {
-        let mut profile_name = super::super::PROFILE_NAME.lock().await;
+        let mut profile_name = PROFILE_NAME.lock().await;
         *profile_name = name;
     }
 }
@@ -81,7 +97,7 @@ pub struct Profile {
 
 #[tauri::command]
 pub async fn get_profiles() -> Result<Vec<Profile>, String> {
-    let db = super::super::GLOBAL_DB
+    let db = GLOBAL_DB
         .get()
         .ok_or_else(|| "Database not initialized".to_string())?;
     let chats: Vec<Profile> = sqlx::query_as::<_, Profile>("SELECT  profile_id, profile_name FROM profiles")
@@ -95,7 +111,7 @@ pub async fn get_profiles() -> Result<Vec<Profile>, String> {
 
 #[tauri::command]
 pub async fn delete_chat(chat_id: &str) -> Result<(), String> {
-    let db = super::super::GLOBAL_DB
+    let db = GLOBAL_DB
         .get()
         .ok_or_else(|| "Database not initialized".to_string())?;
     
@@ -110,13 +126,13 @@ pub async fn delete_chat(chat_id: &str) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn add_chat(
-    state: tauri::State<'_, super::objects::AppState>,
+    state: tauri::State<'_, objects::AppState>,
     name: &str,
     dst_user_id: &str,
 ) -> Result<String, String> {
     let db = &state.db;
     let chat_id = uuid::Uuid::new_v4().to_string();
-    let current_profile = super::utils::get_profile_name().await;
+    let current_profile = utils::get_profile_name().await;
     let current_time = chrono::Utc::now().timestamp();
     sqlx::query("INSERT INTO chats (chat_id, chat_name, dst_user_id, last_updated, chat_profil) VALUES (?1, ?2, ?3, ?4, ?5)")
         .bind(&chat_id)
@@ -135,7 +151,7 @@ pub async fn add_chat(
 
 #[tauri::command]
 pub async fn has_shared_secret(chat_id: &str) -> Result<Option<bool>, String> {
-    let db = super::super::GLOBAL_DB
+    let db = GLOBAL_DB
         .get()
         .ok_or_else(|| "Database not initialized".to_string())?;
 
@@ -155,10 +171,10 @@ pub async fn has_shared_secret(chat_id: &str) -> Result<Option<bool>, String> {
 }
 
 pub async fn get_shared_secrets(shared_secrets: &mut HashMap<String, Vec<u8>>) -> Result<(), String> {
-    let db = super::super::GLOBAL_DB
+    let db = GLOBAL_DB
         .get()
         .ok_or_else(|| "Database not initialized".to_string())?;
-    let current_profile = super::utils::get_profile_name().await;
+    let current_profile = utils::get_profile_name().await;
     let rows: Vec<(Vec<u8>, String)> =
         sqlx::query_as("SELECT shared_secret, dst_user_id FROM chats WHERE chat_profil = ?")
             .bind(&current_profile)
@@ -178,7 +194,7 @@ pub async fn get_shared_secrets(shared_secrets: &mut HashMap<String, Vec<u8>>) -
 }
 
 pub async fn save_shared_secret(source_id: &str, dst_id: &str, shared_secret: Vec<u8>) -> Result<String, String> {
-    let db = super::super::GLOBAL_DB
+    let db = GLOBAL_DB
         .get()
         .ok_or_else(|| "Database not initialized".to_string())?;
     let profil_dst: String = sqlx::query_scalar("SELECT profile_name FROM profiles WHERE user_id = ?")
@@ -208,15 +224,15 @@ pub async fn save_shared_secret(source_id: &str, dst_id: &str, shared_secret: Ve
 
 #[tauri::command]
 pub async fn save_message(
-    state: tauri::State<'_, super::objects::AppState>,
+    state: tauri::State<'_, objects::AppState>,
     chat_id: &str,
     sender_id: &str,
     message: String,
 ) -> Result<(), String> {
     let db = &state.db;
-    let key = super::super::ENCRYPTION_KEY.lock().await;
-    println!("REALLY HOPE THIS DOESN'T PRINT");
-    let encrypted_message_vec = super::encryption::encrypt_message(&message, &key).await;
+    let key = ENCRYPTION_KEY.lock().await;
+    
+    let encrypted_message_vec = encryption::encrypt_message(&message, &key).await;
     let encrypted_message = hex::encode(encrypted_message_vec);
 
     let current_time = chrono::Utc::now().timestamp();
@@ -246,11 +262,11 @@ pub async fn save_received_message(
     dst_id: &str,
     message: &str,
 ) -> Result<(), String> {
-    let db = super::super::GLOBAL_DB
+    let db = GLOBAL_DB
         .get()
         .ok_or_else(|| "Database not initialized".to_string())?;
-    let key = super::super::ENCRYPTION_KEY.lock().await;
-    let encrypted_message_vec = super::encryption::encrypt_message(&message, &key).await;
+    let key = ENCRYPTION_KEY.lock().await;
+    let encrypted_message_vec = encryption::encrypt_message(&message, &key).await;
     let encrypted_message = hex::encode(encrypted_message_vec);
 
     let current_time = chrono::Utc::now().timestamp();
@@ -267,8 +283,6 @@ pub async fn save_received_message(
         .fetch_one(db)
         .await
         .map_err(|e| format!("Failed to get chat_id: {}", e))?;
-
-    println!("Received a message from source id {} with destination id {}. Profil dst is thought to be {} Current profile is {}", source_id, dst_id, &profil_dst, super::super::PROFILE_NAME.lock().await);
 
     sqlx::query("UPDATE chats SET last_updated = ? WHERE chat_id = ?")
         .bind(&current_time)
@@ -292,15 +306,15 @@ pub async fn save_received_message(
 
 #[tauri::command]
 pub async fn get_messages(
-    state: tauri::State<'_, super::objects::AppState>,
+    state: tauri::State<'_, objects::AppState>,
     chat_id: &str,
-) -> Result<Vec<super::objects::Message>, String> {
+) -> Result<Vec<objects::Message>, String> {
     let db = &state.db;
     
-    let key = super::super::ENCRYPTION_KEY.lock().await;
+    let key = ENCRYPTION_KEY.lock().await;
     
-    let messages: Vec<super::objects::Message> =
-        sqlx::query_as::<_, super::objects::Message>("SELECT * FROM messages WHERE chat_id = ?1")
+    let messages: Vec<objects::Message> =
+        sqlx::query_as::<_, objects::Message>("SELECT * FROM messages WHERE chat_id = ?1")
             .bind(chat_id)
             .fetch(db)
             .try_collect()
@@ -309,9 +323,9 @@ pub async fn get_messages(
 
         let mut decrypted_messages = Vec::new();
         for mut msg in messages {
-            let encrypted_buffer = hex::decode(msg.content).unwrap();
+            let encrypted_buffer = hex::decode(msg.content).map_err(|_| "Failed to parse encrypted message content as hex")?;
     
-            match super::encryption::decrypt_message(&encrypted_buffer, &key).await {
+            match encryption::decrypt_message(&encrypted_buffer, &key).await {
                 Ok(decrypted) => {
                     msg.content = decrypted;
                     decrypted_messages.push(msg);
@@ -323,10 +337,10 @@ pub async fn get_messages(
 }
 
 #[tauri::command]
-pub async fn get_chats(state: tauri::State<'_, super::objects::AppState>) -> Result<Vec<super::objects::Chat>, String> {
+pub async fn get_chats(state: tauri::State<'_, objects::AppState>) -> Result<Vec<objects::Chat>, String> {
     let db = &state.db;
-    let current_profile = super::utils::get_profile_name().await;
-    let chats: Vec<super::objects::Chat> = sqlx::query_as::<_, super::objects::Chat>("SELECT * FROM chats WHERE chat_profil = ?1 ORDER BY last_updated DESC")
+    let current_profile = utils::get_profile_name().await;
+    let chats: Vec<objects::Chat> = sqlx::query_as::<_, objects::Chat>("SELECT * FROM chats WHERE chat_profil = ?1 ORDER BY last_updated DESC")
         .bind(current_profile)
         .fetch(db)
         .try_collect()
