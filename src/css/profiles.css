@@ -1,0 +1,86 @@
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; font-family: 'Segoe UI', sans-serif; color: #fff; }
+body {
+  background: linear-gradient(to bottom right, #1e1e2e, #1e1e2e, #1e1e2e);
+  display: flex; align-items: center; justify-content: center;
+}
+button, input { outline: none; }
+
+.page {
+  position: absolute; display: none; flex-direction: column;
+  align-items: center; padding: 20px; 
+  background: rgba(0,0,0,0.6); border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  width: 90%; max-width: 400px;
+  opacity: 0; transition: opacity .3s ease;
+}
+.page.active { display: flex; opacity: 1; }
+
+h1 { margin: 0 0 12px; font-size: 1.8rem; }
+
+.step-indicator {
+  margin-bottom: 16px;
+  font-size: .9rem; color: #ccc;
+}
+
+.profiles {
+  display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;
+  justify-content: center;
+}
+.profile-card {
+  width: 100px; text-align: center;
+  background: rgba(255,255,255,0.1); padding: 12px;
+  border-radius: 12px; cursor: pointer;
+  transition: transform .2s ease, background .2s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.profile-card:hover {
+  background: rgba(255,255,255,0.2);
+  transform: translateY(-4px);
+}
+.profile-avatar {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: rgba(255,255,255,0.3); margin: 0 auto 8px;
+}
+
+input {
+  width: 100%; padding: 12px; border-radius: 8px;
+  border: none; margin-bottom: 20px; font-size: 1rem;
+  background: rgba(255,255,255,0.1); color: #fff;
+}
+input::placeholder { color: #ddd; }
+
+button {
+  width: 100%; padding: 12px; margin-top: 0;
+  border: none; border-radius: 8px;
+  background: rgba(255,255,255,0.2); color: #fff;
+  font-size: 1rem; cursor: pointer;
+  transition: background .2s ease, box-shadow .2s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+button:disabled {
+  background: rgba(255,255,255,0.1); cursor: not-allowed;
+}
+button:not(:disabled):hover {
+  background: rgba(255,255,255,0.3);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+}
+
+.exit-button {
+  position: fixed; top: 16px; left: 16px;
+  width: 40px; height: 40px;
+  text-align: center;
+  background: transparent; border: none; font-size: 1.5rem;
+  color: #fff; cursor: pointer;
+}
+.exit-button:hover { color: #ff5e5e; }
+
+.mnemonic-container {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 12px; margin-bottom: 20px;
+}
+.mnemonic-word {
+  background: rgba(255,255,255,0.15); padding: 8px;
+  border-radius: 6px; text-align: center; font-weight: bold;
+  user-select: all; font-size: .9rem;
+}

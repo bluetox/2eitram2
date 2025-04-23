@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Messenger</title>
   <link rel="stylesheet" href="css/chat.css" />
-  <script type="module" src="main.js" defer></script>
+  <script type="module" src="js/chat.js" defer></script>
 </head>
 
 <body>
@@ -16,14 +16,35 @@
   </div>
   
   <div class="container" id="container" style="display: none;">
+    <div class="parameter-page" id="parameter-view">
+      <div class="parameter-header">
+        <svg id= "parameter-exit" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-3">
+          <path fill-rule="evenodd" d="M11.03 3.97a.75.75 0 0 1 0 1.06l-6.22 6.22H21a.75.75 0 0 1 0 1.5H4.81l6.22 6.22a.75.75 0 1 1-1.06 1.06l-7.5-7.5a.75.75 0 0 1 0-1.06l7.5-7.5a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" />
+        </svg>
+      </div>
+      <div class="parameter-button">Privacy and Security</div>
+      <div class="parameter-button">Chat Settings</div>
+    </div>
+    <div class="add-conv-container" id="create-conv-container">
+      <div class="chat-item">
+        <div class="chat-content" id="create-private-chat">
+          <div class="chat-name">Add private chat</div>
+        </div>
+      </div>
+      <div class="chat-item" id="create-group-chat">
+        <div class="chat-content">
+          <div class="chat-name">Add groupe chat</div>
+        </div>
+      </div>
+    </div>
     <div class="sidebar" id="sidebar">
-      <h2>Sidebar Title</h2>
-      <p>This is your sidebar content.</p>
+      <h2>Cool Guy</h2>
+      <div class="sidebar-button" id="settings-button">Settings</div>
       <div class="sidebar-button" id="disconnect">Disconnect</div>
       <div class="sidebar-button" id="close-sidebar">Close</div>
     </div>
+
     <div class="chat-list" id="chatList">
-      
       <div class="chat-header">
         <svg id="open-sidebar" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />

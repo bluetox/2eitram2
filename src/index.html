@@ -3,150 +3,41 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Profile Selection</title>
-  <link rel="stylesheet" href="css/index.css" />
-  <script type="module" src="profiles.js" defer></script>
+  <title>Oblivion</title>
+  <link rel="stylesheet" href="css/profiles.css">
+  <script type="module" src="js/index.js" defer></script>
 </head>
-
 <body>
-  <div class="container">
-    <h2>Select a Profile</h2>
+  <div class="page active" id="profile-select-page">
+    <h1>Select a Profile</h1>
     <div class="profiles" id="profiles"></div>
-    <button class="add-profile" id="add-profile-button">+ Add Profile</button>
+    <button id="add-profile">+ Add Profile</button>
   </div>
 
-  <!-- Multi-step modal -->
-  <div class="modal" id="account-modal">
-    <div class="modal-content">
-      <div id="step-1" class="step active">
-        <h3>Step 1: Profile Name</h3>
-        <input type="text" id="profile-name-input" placeholder="Enter name" />
-        <button onclick="nextStep(1)">Next</button>
-      </div>
-
-      <div id="step-2" class="step">
-        <h3>Step 2: Create Password</h3>
-        <input type="password" id="password-input" placeholder="Enter password" />
-        <button onclick="nextStep(2)">Next</button>
-      </div>
-
-      <div id="step-3" class="step">
-        <h3>Step 3: Save Your Mnemonic</h3>
-        <pre id="mnemonic-display">Generating...</pre>
-        <button onclick="nextStep(3)">I wrote it down</button>
-      </div>
-
-      <div id="step-4" class="step">
-        <h3>Step 4: Confirm Mnemonic</h3>
-        <input type="text" id="mnemonic-confirm" placeholder="Retype the mnemonic" />
-        <button onclick="submitAccount()">Finish</button>
-      </div>
-
-      <button onclick="closeModal()">Cancel</button>
+  <div class="page" id="add-profile-page">
+    <button class="exit-button" id="exit-add-profile">&times;</button>
+    <div class="step-indicator" id="step-indicator">Step 1 of 4</div>
+    <div id="step1">
+      <h1>Add Profile</h1>
+      <input type="text" id="profile-name" placeholder="Profile Name"/>
+      <button id="save-profile-name" disabled>Next</button>
+    </div>
+    <div id="step2" style="display:none;">
+      <h1>Choose Password</h1>
+      <input type="password" id="password" placeholder="Password"/>
+      <button id="to-step-3" disabled>Next</button>
+    </div>
+    <div id="step3" style="display:none;">
+      <h1>Confirm Password</h1>
+      <input type="password" id="re-typed-password" placeholder="Re‑enter Password"/>
+      <button id="to-step-4" disabled>Next</button>
+    </div>
+    <div id="step4" style="display:none;">
+      <h1>Your Mnemonic</h1>
+      <p>Write it down & store safely!</p>
+      <div class="mnemonic-container" id="mnemonic-container"></div>
+      <button id="finish">Finish</button>
     </div>
   </div>
 </body>
-<script>
-  const { invoke } = window.__TAURI__.core;
-
-let step = 1;
-let tempProfileName = '';
-let tempPassword = '';
-let tempMnemonic = '';
-async function load_profiles() {
-  let profiles = await invoke("get_profiles");
-  const profilesDiv = document.getElementById('profiles');
-  profilesDiv.innerHTML = '';
-
-  for (const profile of profiles) {
-    const profileDiv = document.createElement('div');
-    profileDiv.className = 'profile';
-    profileDiv.onclick = async () => {
-      await selectProfile(profile.profile_name);
-    };
-
-    const img = document.createElement('img');
-    img.src = "https://wallpapers.com/images/high/netflix-profile-pictures-5yup5hd2i60x7ew3.webp";
-    img.alt = profile.profile_name;
-
-    const p = document.createElement('p');
-    p.textContent = profile.profile_name;
-
-    profileDiv.appendChild(img);
-    profileDiv.appendChild(p);
-    profilesDiv.appendChild(profileDiv);
-  }
-}
-
-async function selectProfile(name) {
-  await invoke("set_profile_name", { name });
-  window.location.href = 'chat.html';
-}
-
-function closeModal() {
-  document.getElementById('account-modal').classList.remove('active');
-  document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
-  tempMnemonic = tempPassword = tempProfileName = '';
-}
-
-function showStep(n) {
-  document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
-  document.getElementById(`step-${n}`).classList.add('active');
-}
-
-async function nextStep(current) {
-  if (current === 1) {
-    tempProfileName = document.getElementById('profile-name-input').value.trim();
-    if (!tempProfileName) return alert("Name required");
-    showStep(2);
-  } else if (current === 2) {
-    tempPassword = document.getElementById('password-input').value;
-    if (!tempPassword) return alert("Password required");
-    try {
-      tempMnemonic = await invoke("generate_mnemonic");
-      document.getElementById('mnemonic-display').textContent = tempMnemonic;
-      showStep(3);
-    } catch (err) {
-      alert("Mnemonic generation failed");
-    }
-  } else if (current === 3) {
-    showStep(4);
-  }
-}
-
-async function submitAccount() {
-  const confirm = document.getElementById('mnemonic-confirm').value.trim();
-  console.log("input: ",confirm);
-  console.log("existing: ",tempMnemonic);
-  if (confirm !== tempMnemonic.join(',')) {
-    return alert("Mnemonic doesn't match.");
-  }
-  try {
-    console.log({
-      name: tempProfileName,
-      password: tempPassword,
-      mnemonic: tempMnemonic.join(' ')
-    });
-    await invoke("create_profil", {
-      name: tempProfileName,
-      password: tempPassword,
-      phrase: tempMnemonic.join(' ')
-    });
-    
-    closeModal();
-    load_profiles();
-  } catch (e) {
-    alert("Profile creation failed.");
-    console.error(e);
-  }
-}
-
-document.getElementById("add-profile-button").addEventListener('click', () => {
-  document.getElementById('account-modal').classList.add('active');
-  showStep(1);
-});
-
-load_profiles();
-
-</script>
 </html>

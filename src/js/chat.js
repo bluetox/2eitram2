@@ -4,6 +4,16 @@ const { isPermissionGranted, requestPermission, sendNotification, } = window.__T
 
 const toggleBtn = document.getElementById('open-sidebar');
 const disconnect = document.getElementById('disconnect');
+const params_button = document.getElementById('settings-button');
+const parameter_exit = document.getElementById('parameter-exit');
+parameter_exit.addEventListener('click', () => {
+  document.getElementById('parameter-view').style.display = 'none';
+});
+params_button.addEventListener('click', () => {
+  console.log('did settings');
+  document.getElementById('parameter-view').style.display = 'flex';
+});
+
 disconnect.addEventListener('click', () => {
   window.location = "index.html";
 })
@@ -80,7 +90,7 @@ async function loadExistingChats() {
         openChat(chatName, userId, chatId)
       }
       else {
-        invoke("establish_ss", {dstUserId: userId}).then(console.log("did it")); 
+        await invoke("establish_ss", {dstUserId: userId, chatId: chatId}).then(console.log("did it")); 
 
       }
     };
@@ -94,7 +104,7 @@ async function load_tauri() {
     await listenForMessages();
 
     document.getElementById("submit-password").addEventListener("click", checkPassword);
-    document.getElementById("add-chat").addEventListener("click", openAddChatForm);
+    document.getElementById("add-chat").addEventListener("click", openAddChatChoice);
     document.getElementById("back-to-chats").addEventListener("click", closeChat);
     document.getElementById("submit-new-chat").addEventListener("click", submitNewChat);
   }
@@ -105,7 +115,7 @@ async function checkPassword() {
   let password = document.getElementById("passwordInput").value;
   document.getElementById("passwordInput").value = null;
   const accountCred = await invoke("generate_dilithium_keys", {password: password});
-
+  console.log(accountCred);
   if (password) {
     document.getElementById("passwordOverlay").style.display = "none";
     document.getElementById("container").style.display = "flex";
@@ -117,47 +127,71 @@ async function checkPassword() {
 
 async function openChat(chatName, userId, chatId) {
   document.getElementById("chatTitle").innerText = chatName;
-  document.getElementById("chatMessages").innerHTML = "";
-  console.log(chatId);
+  const chatMessages = document.getElementById("chatMessages");
+  chatMessages.innerHTML = "";
+
+  console.log("Opening chat:", chatId);
+
   try {
-    const messages = await invoke("get_messages", {chatId: chatId});
-    console.log(messages);
+    const messages = await invoke("get_messages", { chatId });
 
     messages.forEach((message) => {
-      const chatMessages = document.getElementById("chatMessages");
       const newMessage = document.createElement("div");
-      if (message.message_type === "sent") {
-        newMessage.classList.add("message", "message-sent");
+      newMessage.classList.add("message", message.message_type === "sent" ? "message-sent" : "message-received");
+
+      if (isHTML(message.content)) {
+        newMessage.innerHTML = decodeHTMLEntities(message.content);
+
+        try {
+          const button = newMessage.querySelector("button");
+          if (button) {
+            button.addEventListener("click", async () => {
+              await invoke("send_message", {
+                dstIdHexs: userId,
+                messageString: "text"
+              });
+              console.log("Auto-response sent.");
+            });
+          }
+        } catch (err) {
+          console.warn("Button listener error:", err);
+        }
       } else {
-        newMessage.classList.add("message", "message-received");
+        newMessage.innerText = message.content;
       }
-      newMessage.innerText = message.content;
+
       chatMessages.appendChild(newMessage);
       chatMessages.scrollTop = chatMessages.scrollHeight;
     });
 
-    console.log(`Loaded messages for chat: ${chatName}`);
+    console.log(`Loaded ${messages.length} messages for chat: ${chatName}`);
   } catch (error) {
     console.error(`Failed to load messages for ${chatName}:`, error);
   }
 
   document.getElementById("send-message-button").onclick = async () => {
-    const message = document.getElementById("chatInput").value;
+    const input = document.getElementById("chatInput");
+    const message = input.value.trim();
+    if (!message) return;
 
     await invoke("send_message", {
       dstIdHexs: userId,
       messageString: message
     });
-    console.log("sent one message");
 
-    document.getElementById("chatInput").value = "";
+    input.value = "";
 
-    const chatMessages = document.getElementById("chatMessages");
     const newMessage = document.createElement("div");
     newMessage.classList.add("message", "message-sent");
     newMessage.innerText = message;
     chatMessages.appendChild(newMessage);
-    await invoke("save_message", {chatId: chatId,senderId: userId, message: message});
+
+    await invoke("save_message", {
+      chatId,
+      senderId: userId,
+      message
+    });
+
     chatMessages.scrollTop = chatMessages.scrollHeight;
   };
 
@@ -165,12 +199,16 @@ async function openChat(chatName, userId, chatId) {
   document.getElementById("bottom-bar").style.transform = "translateX(-100vw)";
 }
 
+function isHTML(str) {
+  const doc = new DOMParser().parseFromString(str, "text/html");
+  return Array.from(doc.body.childNodes).some((node) => node.nodeType === 1);
+}
+
 async function listenForMessages() {
   listen("received-message", async (event) => {
     const data = JSON.parse(event.payload);
     const message = data.message;
     const userId = data.source;
-
     if (!userId) {
       console.error("Error: userId is missing for received message.");
       return;
@@ -181,7 +219,7 @@ async function listenForMessages() {
       const chatMessages = document.getElementById("chatMessages");
       const newMessage = document.createElement("div");
       newMessage.classList.add("message", "message-received");
-      newMessage.innerText = message;
+      newMessage.innerHTML = decodeHTMLEntities(message);
       chatMessages.appendChild(newMessage);
       chatMessages.scrollTop = chatMessages.scrollHeight;
     } catch (error) {
@@ -192,9 +230,28 @@ async function listenForMessages() {
 
 }
 
+function decodeHTMLEntities(html) {
+  const txt = document.createElement("textarea");
+  txt.innerHTML = html;
+  return txt.value;
+}
+
 function closeChat() {
   document.getElementById("container").style.transform = "translateX(0)";
 }
+
+function openAddChatChoice() {
+  document.getElementById("create-conv-container").style.display = "flex";
+  document.getElementById("create-group-chat").addEventListener('click', async () => {
+    alert("this feature is currently under developement");
+    //await invoke("create_group_chat", {chatName: "chatTest", members: ["f79dfc952f269c10569948092cdfaba3e1c88d38b7c32074bce983f69947fdf8", "ad254ceed942460c3a1bceb3a3ec7655cb71db3fff5eec4128edf3cd095044f4", "a8ef6e1e0aeafca616cc543af19231125992afa3f870f6e6be6d1bf46d5edcfb", "2c5a582f1f876a3c445e3fb732fae513b5c8b5e3ab316db7dd82a858b61ae1fe"]});
+  });
+  document.getElementById("create-private-chat").addEventListener('click', async () => {
+    document.getElementById("create-conv-container").style.display = "none";
+    openAddChatForm();
+  });
+}
+
 
 function openAddChatForm() {
   document.getElementById("addChatForm").style.display = "flex";
@@ -247,7 +304,7 @@ async function submitNewChat() {
         openChat(chatName, userId, chatId)
       }
       else {
-        await invoke("establish_ss", {dstUserId: userId})
+        await invoke("establish_ss", {dstUserId: userId, chatId: chatId})
       }
     };
     const chatItemsContainer = document.getElementById("chatItems");
