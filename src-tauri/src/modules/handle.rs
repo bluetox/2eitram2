@@ -1,4 +1,4 @@
-use super::{encryption, utils, tcp};
+use super::utils;
 use rand::rngs::OsRng;
 use tauri::{AppHandle, Emitter};
 
@@ -34,19 +34,19 @@ pub async fn handle_ct(buffer: &Vec<u8>) -> Result<(), String> {
         return Err("Invalid Ed25519 signature".to_string());
     }
 
-    let user_id = utils::create_user_id_hash(&full_hash_input);
+    let source_user_id = utils::create_user_id_hash(&full_hash_input);
 
     {
-        let keys_lock = super::super::KEYS.lock().await;
-        let keys = keys_lock.as_ref().expect("Keys not initialized");
+        let chat_id =  crate::database::utils::chat_id_from_data(&source_user_id, &dst_id_hex).await.unwrap();
 
-        let ss = safe_pqc_kyber::decapsulate(ct, &keys.kyber_keys.secret)
+        let kyber_keys =  crate::database::utils::get_chat_kyber_keys(&chat_id).await.unwrap();
+        let ss = safe_pqc_kyber::decapsulate(ct, &kyber_keys.secret)
             .map_err(|e| format!("Kyber decapsulation failed: {:?}", e))?;
 
         let mut locked_client = super::super::TCP_CLIENT.lock().await;
-        locked_client.set_shared_secret(&user_id, &ss.to_vec()).await;
+        locked_client.set_shared_secret(&source_user_id, &ss.to_vec()).await;
         
-        super::database::save_shared_secret(user_id.clone().as_ref(), &dst_id_hex, ss.to_vec())
+        crate::database::utils::save_shared_secret(source_user_id.clone().as_ref(), &dst_id_hex, ss.to_vec())
             .await
             .map_err(|e| format!("Failed to save shared secret: {:?}", e))?;
     }
@@ -94,7 +94,7 @@ pub async fn handle_kyber(buffer: &Vec<u8>) -> Result<Vec<u8>, String> {
     let mut locked_client = super::super::TCP_CLIENT.lock().await;
     locked_client.set_shared_secret(&user_id, &shared_secret.to_vec()).await;
     drop(locked_client);
-    if super::database::save_shared_secret(&user_id.clone(), &dst_id_hex ,shared_secret.to_vec())
+    if crate::database::utils::save_shared_secret(&user_id.clone(), &dst_id_hex ,shared_secret.to_vec())
         .await
         .is_err()
     {
@@ -106,7 +106,7 @@ pub async fn handle_kyber(buffer: &Vec<u8>) -> Result<Vec<u8>, String> {
         Err(_) => return Err("Failed to decode dst_id_hex".to_string()),
     };
     
-    let response = tcp::send_cyphertext(source_id_bytes, ciphertext.to_vec()).await;
+    let response = crate::network::utils::send_cyphertext(source_id_bytes, ciphertext.to_vec()).await;
 
     Ok(response)
 }
@@ -151,14 +151,14 @@ pub async fn handle_message(buffer: &Vec<u8>, app: &AppHandle) -> Result<(), Str
             e
     })?;
     drop(locked_client);
-    match encryption::decrypt_message(
+    match crate::encryption::utils::decrypt_message(
         &buffer[5 + 3293 + 64 + 1952 + 32 + 32 + 16 + 8..].to_vec(),
         &ss,
     )
     .await
     {
         Ok(decrypted_message) => {
-            super::database::save_received_message(&source_id, &dst_id_hex, &decrypted_message).await?;
+            crate::database::utils::save_received_message(&source_id, &dst_id_hex, &decrypted_message).await?;
             app.emit(
                 "received-message",
                 format!(

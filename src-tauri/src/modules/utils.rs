@@ -24,7 +24,7 @@ pub async fn create_send_message_packet(
 
     let dst_id_bytes = hex::decode(&dst_id_hexs)?;
 
-    let message = super::encryption::encrypt_message(&message_string, ss).await;
+    let message = crate::encryption::utils::encrypt_message(&message_string, ss).await;
 
     let dilithium_public_key = keys.dilithium_keys.public.clone();
     let ed25519_public_key = keys.ed25519_keys.public_key().as_ref().to_vec();
@@ -62,6 +62,6 @@ pub async fn create_send_message_packet(
     raw_packet.extend_from_slice(&ed25519_signature);
     raw_packet.extend_from_slice(&sign_part);
 
-    let encrypted_packet = super::encryption::encrypt_packet(&raw_packet, nss).await;
+    let encrypted_packet = crate::encryption::utils::encrypt_packet(&raw_packet, nss).await;
     Ok(encrypted_packet)
 }

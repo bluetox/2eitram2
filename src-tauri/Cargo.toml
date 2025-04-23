@@ -49,8 +49,6 @@ bip39 = { version = "2.1.0", features = ["rand", "zeroize"] }
 rand = "0.8"
 zeroize = { version = "1", features = ["zeroize_derive"] }
 
-
-
 [profile.dev]
 incremental = true
 

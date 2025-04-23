@@ -1,19 +1,15 @@
 use sqlx::Row;
 use bip39::{Mnemonic, Language};
-use super::{
-    utils,
-    encryption,
-    super::{
-        GLOBAL_DB,
-        ENCRYPTION_KEY
-    }
+use super::super::{
+    GLOBAL_DB,
+    ENCRYPTION_KEY 
 };
 
 const PBKDF2_ITER : u32 = 2_000;
 
-pub async fn load_keys(password: &str) -> Result<super::objects::Keys, String> {
+pub async fn load_keys(password: &str) -> Result<crate::modules::objects::Keys, String> {
 
-    let current_profile = utils::get_profile_name().await;
+    let current_profile = crate::modules::utils::get_profile_name().await;
     let db = GLOBAL_DB
     .get()
     .ok_or_else(|| "Database not initialized".to_string())?;
@@ -38,12 +34,12 @@ pub async fn load_keys(password: &str) -> Result<super::objects::Keys, String> {
     let mut key = ENCRYPTION_KEY.lock().await;
     *key = generate_pbkdf2_key(password)?;
 
-    let dilithium_public: Vec<u8> = encryption::decrypt_data(&row.get("dilithium_public"), &key).await?;
-    let dilithium_private: Vec<u8> = encryption::decrypt_data(&row.get("dilithium_private"), &key).await?;
-    let kyber_public: Vec<u8> = encryption::decrypt_data(&row.get("kyber_public"), &key).await?;
-    let kyber_private: Vec<u8> = encryption::decrypt_data(&row.get("kyber_private"), &key).await?;
-    let ed25519: Vec<u8> = encryption::decrypt_data(&row.get("ed25519"), &key).await?;
-    let nonce: Vec<u8> = encryption::decrypt_data(&row.get("nonce"), &key).await?;
+    let dilithium_public: Vec<u8> = super::utils::decrypt_data(&row.get("dilithium_public"), &key).await?;
+    let dilithium_private: Vec<u8> = super::utils::decrypt_data(&row.get("dilithium_private"), &key).await?;
+    let kyber_public: Vec<u8> = super::utils::decrypt_data(&row.get("kyber_public"), &key).await?;
+    let kyber_private: Vec<u8> = super::utils::decrypt_data(&row.get("kyber_private"), &key).await?;
+    let ed25519: Vec<u8> = super::utils::decrypt_data(&row.get("ed25519"), &key).await?;
+    let nonce: Vec<u8> = super::utils::decrypt_data(&row.get("nonce"), &key).await?;
     let _user_id: String = row.get("user_id");
     
     
@@ -67,7 +63,7 @@ pub async fn load_keys(password: &str) -> Result<super::objects::Keys, String> {
     };
 
     
-    let keys = super::objects::Keys {
+    let keys = crate::modules::objects::Keys {
         ed25519_keys: ed25519,
         dilithium_keys: dilithium_keypair,
         kyber_keys,

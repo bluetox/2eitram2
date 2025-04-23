@@ -1,4 +1,3 @@
-use modules::tcp::TcpClient;
 use once_cell::sync::OnceCell;
 use ring::signature::KeyPair;
 use std::env;
@@ -6,8 +5,13 @@ use std::sync::Arc;
 use tauri::{AppHandle, Manager as _};
 use tauri::Wry;
 use tokio::sync::Mutex;
-mod modules;
 use sqlx::{migrate::MigrateDatabase, sqlite::SqlitePoolOptions, Pool, Sqlite};
+use network::client::TcpClient;
+mod modules;
+mod network;
+mod database;
+mod encryption;
+
 
 pub static GLOBAL_STORE: OnceCell<Mutex<Arc<tauri_plugin_store::Store<Wry>>>> = OnceCell::new();
 pub static PROFILE_NAME: once_cell::sync::Lazy<Mutex<String>> = once_cell::sync::Lazy::new(|| Mutex::new(String::new()));
@@ -16,16 +20,40 @@ lazy_static::lazy_static! {
     pub static ref ENCRYPTION_KEY: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
 }
 lazy_static::lazy_static! {
-    pub static ref TCP_CLIENT: Arc<Mutex<modules::tcp::TcpClient>> = Arc::new(Mutex::new(TcpClient::new()));
+    pub static ref TCP_CLIENT: Arc<Mutex<TcpClient>> = Arc::new(Mutex::new(TcpClient::new()));
 }
 lazy_static::lazy_static! {
     pub static ref KEYS : Arc<Mutex<Option<modules::objects::Keys>>> = Arc::new(Mutex::new(None));
 }
 pub static GLOBAL_DB: OnceCell<Pool<Sqlite>> = OnceCell::new();
 
+//#[tauri::command]
+//async fn create_group_chat(chat_name: String, members: Vec<String>) {
+//    let creator_name = utils::get_profile_name().await;
+//    let mut index = 0;
+//    let mut root_key = vec![0u8; 32];
+//    OsRng.fill_bytes(&mut root_key);
+//    let mut group = mls_rust::GroupChat::create(creator_name.clone(), root_key);
+//    group.print_root("Initial");
+//
+//    for user_id in &members {
+//        if user_id.len() != 64 || hex::decode(user_id).is_err(){
+//            return;
+//        }
+//    }
+//    let group_id = uuid::Uuid::new_v4().to_string();
+//    for user_id in &members{
+//        let packet = crate::network::packet::create_add_chat_packet(&user_id, &chat_name, &group_id).await;
+//        {
+//            let mut client = TCP_CLIENT.lock().await;
+//            client.send_group_invite(packet).await;
+//        }
+//    }
+//}
+
 #[tauri::command]
 async fn generate_dilithium_keys(app: tauri::AppHandle, password: &str) -> Result<(), String> {
-    match modules::handle_keys::load_keys(&password).await {
+    match encryption::keys::load_keys(&password).await {
         Ok(keys) => {
             let full_hash_input = [
                 &keys.dilithium_keys.public[..],
@@ -108,18 +136,21 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             generate_dilithium_keys,
-            modules::tcp::send_message,
-            modules::database::add_chat,
-            modules::database::get_chats,
-            modules::database::save_message,
-            modules::database::get_messages,
-            modules::database::get_profiles,
-            modules::database::has_shared_secret,
-            modules::tcp::establish_ss,
-            modules::database::set_profile_name,
-            modules::database::delete_chat,
-            modules::database::create_profil,
-            modules::handle_keys::generate_mnemonic
+            network::commands::send_message,
+            network::commands::establish_ss,
+
+            database::commands::get_chats,
+            database::commands::get_messages,
+            database::commands::set_profile_name,
+            database::commands::create_profil,
+
+            database::commands::add_chat,
+            database::commands::save_message,
+            database::commands::get_profiles,
+            database::commands::has_shared_secret,
+            database::commands::delete_chat,
+
+            encryption::keys::generate_mnemonic
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();
