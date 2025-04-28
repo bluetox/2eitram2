@@ -11,7 +11,7 @@ mod modules;
 mod network;
 mod database;
 mod encryption;
-
+mod utils;
 
 pub static GLOBAL_STORE: OnceCell<Mutex<Arc<tauri_plugin_store::Store<Wry>>>> = OnceCell::new();
 pub static PROFILE_NAME: once_cell::sync::Lazy<Mutex<String>> = once_cell::sync::Lazy::new(|| Mutex::new(String::new()));
@@ -52,7 +52,7 @@ pub static GLOBAL_DB: OnceCell<Pool<Sqlite>> = OnceCell::new();
 //}
 
 #[tauri::command]
-async fn generate_dilithium_keys(app: tauri::AppHandle, password: &str) -> Result<(), String> {
+async fn generate_dilithium_keys(app: tauri::AppHandle, password: &str) -> Result<String, String> {
     match encryption::keys::load_keys(&password).await {
         Ok(keys) => {
             let full_hash_input = [
@@ -61,10 +61,8 @@ async fn generate_dilithium_keys(app: tauri::AppHandle, password: &str) -> Resul
                 &keys.nonce[..],
             ]
             .concat();
-            let user_id = modules::utils::create_user_id_hash(&full_hash_input);
+            let user_id = utils::create_user_id_hash(&full_hash_input);
     
-            println!("User id: {}", user_id);
-
             {
                 let mut keys_lock = KEYS.lock().await;
                 *keys_lock = Some(keys);
@@ -79,11 +77,13 @@ async fn generate_dilithium_keys(app: tauri::AppHandle, password: &str) -> Resul
                 *client_lock = new_client;
             }
 
-            return Ok(());
+            return Ok(user_id);
         }
-        Err(e) => println!("error : {:?}", e),
+        Err(e) => {
+            println!("error : {:?}", e);
+            return Err("Failed to load keys".to_string());
+        }
     }
-    Ok(())
 }
 
 async fn setup_app_state(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
@@ -144,8 +144,7 @@ pub fn run() {
             database::commands::set_profile_name,
             database::commands::create_profil,
 
-            database::commands::add_chat,
-            database::commands::save_message,
+            database::commands::create_private_chat,
             database::commands::get_profiles,
             database::commands::has_shared_secret,
             database::commands::delete_chat,

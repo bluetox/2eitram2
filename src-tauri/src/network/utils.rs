@@ -113,19 +113,24 @@ pub async fn listen(
 
                 match prefix {
                     2 => {
-                        let response = crate::modules::handle::handle_kyber(&buffer[..payload_size].to_vec()).await.unwrap();
-                        {
-                            let mut client = super::super::TCP_CLIENT.lock().await;
-                            client.write(&response).await;
+                        match crate::network::handle::handle_kyber(&buffer[..payload_size].to_vec()).await {
+                            Ok(response) => {
+                                println!("Kyber packet handled successfully.");
+                                let mut client = super::super::TCP_CLIENT.lock().await;
+                                client.write(&response).await;
+                            }
+                            Err(err) => {
+                                println!("Error handling kyber packet: {}", err);
+                            }
                         }
                     }
                     3 => {
-                        if let Err(err) = crate::modules::handle::handle_ct(&buffer[..payload_size].to_vec()).await {
+                        if let Err(err) = crate::network::handle::handle_ct(&buffer[..payload_size].to_vec()).await {
                             println!("Error handling ciphertext: {}", err);
                         }                        
                     }
                     4 => {
-                        let _ = crate::modules::handle::handle_message(&buffer[..payload_size].to_vec(), app).await;
+                        let _ = crate::network::handle::handle_message(&buffer[..payload_size].to_vec(), app).await;
                     }
 
                     176 => {

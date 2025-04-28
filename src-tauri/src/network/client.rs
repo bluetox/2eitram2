@@ -9,7 +9,7 @@ use tokio::sync::Mutex;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-const NODE_ADDRESS: &str = "192.168.1.51";
+const NODE_ADDRESS: &str = "148.113.191.144";
 
 pub struct TcpClient {
     write_half: Arc<Mutex<Option<tokio::io::WriteHalf<TcpStream>>>>,
@@ -103,11 +103,11 @@ impl TcpClient {
     }
     
     
-    pub async fn send_message(&mut self, dst_id_hexs: String, message_string: String) {
+    pub async fn send_message(&mut self, chat_id: &str, dst_id_hexs: &str, message_string: &str) {
         {
             let nss = self.get_node_shared_secret().await;
-            let ss = self.get_shared_secret(&dst_id_hexs).await.unwrap();
-            let encrypted_packet = crate::modules::utils::create_send_message_packet(dst_id_hexs, message_string, &ss, &nss)
+            let ss = crate::encryption::keys::ratchet_forward(&"send_root_secret", &chat_id).await.unwrap();
+            let encrypted_packet = crate::network::packet::create_send_message_packet(dst_id_hexs, message_string, &ss.to_vec(), &nss)
             .await
             .unwrap();
         {
@@ -123,9 +123,11 @@ impl TcpClient {
         let keys_lock = crate::KEYS.lock().await;
         let keys = keys_lock.as_ref().expect("Keys not initialized");
         let kyber_public_key = kyber_keys.public;
+
         let dilithium_public_key = keys.dilithium_keys.public.clone();
         let ed25519_public_key = keys.ed25519_keys.public_key().as_ref().to_vec();
         let nonce = keys.nonce;
+        
         let current_time = SystemTime::now();
         let duration_since_epoch = current_time
             .duration_since(UNIX_EPOCH)

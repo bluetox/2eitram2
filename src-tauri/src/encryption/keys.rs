@@ -4,12 +4,14 @@ use super::super::{
     GLOBAL_DB,
     ENCRYPTION_KEY 
 };
+use hkdf::Hkdf;
+use sha2::Sha256;
 
 const PBKDF2_ITER : u32 = 2_000;
 
 pub async fn load_keys(password: &str) -> Result<crate::modules::objects::Keys, String> {
 
-    let current_profile = crate::modules::utils::get_profile_name().await;
+    let current_profile = crate::utils::get_profile_name().await;
     let db = GLOBAL_DB
     .get()
     .ok_or_else(|| "Database not initialized".to_string())?;
@@ -92,4 +94,27 @@ pub fn generate_mnemonic() -> Result<Vec<String>, String>  {
 
     let words = mnemonic.words().map(|w| w.to_string()).collect::<Vec<String>>();
     Ok(words)
+}
+
+pub fn compute_new_secrets(old_secret: &Vec<u8>) -> ([u8; 32], [u8; 32]) {
+    let hk = Hkdf::<Sha256>::new(None, old_secret);
+
+    let mut okm = [0u8; 64]; // 64 bytes output
+    hk.expand(b"ratchet step", &mut okm).expect("HKDF expand failed");
+
+    let (new_root_secret, message_key) = okm.split_at(32);
+
+    (
+        new_root_secret.try_into().unwrap(),
+        message_key.try_into().unwrap(),
+    )
+}
+
+pub async fn ratchet_forward(s_type: &str, chat_id: &str) -> Result<[u8; 32], String> {
+    let current_secret = crate::database::utils::get_secret(s_type, chat_id).await?;
+    println!("Current root: {}", hex::encode(&current_secret));
+    let (new_root_secret, message_key) = compute_new_secrets(&current_secret);
+    println!("New root: {} message_key: {}", hex::encode(new_root_secret), hex::encode(message_key));
+    crate::database::utils::set_new_secret(s_type, chat_id, new_root_secret.to_vec()).await?;
+    Ok(message_key)
 }

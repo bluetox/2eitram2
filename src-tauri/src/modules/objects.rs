@@ -20,12 +20,23 @@ pub struct Message {
 pub struct Chat {
     pub chat_id: String,
     pub chat_name: String,
+}
+
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct PrivateChat {
+    pub chat_id: String,
     pub dst_user_id: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct ChatInfo {
+    pub chat_id: String,
+    pub chat_name: String,
+    pub dst_user_id: String,
+}
 
 pub struct AppState {
     pub db: Db,
 }
 pub type Db = sqlx::Pool<sqlx::Sqlite>;
-

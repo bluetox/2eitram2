@@ -41,6 +41,7 @@ pqc_dilithium = { path = "./dilithium-master", features = ["mode3", "random_sign
 safe_pqc_kyber = { path = "./kyber", features = ["kyber1024", "zeroize"] }
 ring = "0.17"
 aes-gcm = "0.10.0"
+hkdf = "0.12"
 sha2 = "0.10"
 pbkdf2 = "0.12.2"
 bcrypt = {version = "0.17.0", features = ["zeroize"] }

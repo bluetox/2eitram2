@@ -1,4 +1,3 @@
-use super::utils;
 use rand::rngs::OsRng;
 use tauri::{AppHandle, Emitter};
 
@@ -34,7 +33,7 @@ pub async fn handle_ct(buffer: &Vec<u8>) -> Result<(), String> {
         return Err("Invalid Ed25519 signature".to_string());
     }
 
-    let source_user_id = utils::create_user_id_hash(&full_hash_input);
+    let source_user_id = crate::utils::create_user_id_hash(&full_hash_input);
 
     {
         let chat_id =  crate::database::utils::chat_id_from_data(&source_user_id, &dst_id_hex).await.unwrap();
@@ -89,7 +88,7 @@ pub async fn handle_kyber(buffer: &Vec<u8>) -> Result<Vec<u8>, String> {
         Err(_) => return Err("Kyber encapsulation failed".to_string()),
     };
 
-    let user_id = utils::create_user_id_hash(&full_hash_input);
+    let user_id = crate::utils::create_user_id_hash(&full_hash_input);
 
     let mut locked_client = super::super::TCP_CLIENT.lock().await;
     locked_client.set_shared_secret(&user_id, &shared_secret.to_vec()).await;
@@ -140,25 +139,21 @@ pub async fn handle_message(buffer: &Vec<u8>, app: &AppHandle) -> Result<(), Str
         return Err("Invalid Ed25519 signature".to_string());
     }
 
-    let source_id = utils::create_user_id_hash(&full_hash_input);
+    let source_id = crate::utils::create_user_id_hash(&full_hash_input);
 
-    let locked_client = super::super::TCP_CLIENT.lock().await;
-    let ss = locked_client
-        .get_shared_secret(&source_id)
-        .await
-        .map_err(|e| {
-            println!("Failed to get shared_secret: {}", e);
-            e
-    })?;
-    drop(locked_client);
+    let chat_id = crate::database::utils::chat_id_from_data(&source_id, &dst_id_hex).await.unwrap();
+    let ss = crate::encryption::keys::ratchet_forward(&"recv_root_secret", &chat_id).await.unwrap();
+
     match crate::encryption::utils::decrypt_message(
         &buffer[5 + 3293 + 64 + 1952 + 32 + 32 + 16 + 8..].to_vec(),
-        &ss,
+        &ss.to_vec(),
     )
     .await
     {
         Ok(decrypted_message) => {
-            crate::database::utils::save_received_message(&source_id, &dst_id_hex, &decrypted_message).await?;
+
+            crate::database::utils::save_message(&chat_id, &source_id, &decrypted_message, "received").await?;
+            
             app.emit(
                 "received-message",
                 format!(

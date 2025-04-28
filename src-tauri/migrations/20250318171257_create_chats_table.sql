@@ -3,16 +3,30 @@ CREATE TABLE chats (
     chat_profil TEXT NOT NULL,
     chat_name TEXT NOT NULL,
     chat_type TEXT NOT NULL,
-    dst_user_id TEXT,
+    last_updated BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE private_chats (
+    chat_id TEXT NOT NULL,
+    dst_user_id TEXT NOT NULL,
+    send_root_secret BLOB,
+    recv_root_secret BLOB,
     shared_secret BLOB,
     perso_kyber_public BLOB,
     perso_kyber_secret BLOB,
-    peer_kyber_public BLOB,
-    last_updated BIGINT,
-    group_id TEXT,
-    group_owner TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(chat_profil, dst_user_id)
+    peer_kyber_public BLOB
+);
+
+CREATE TABLE group_chats (
+    chat_id TEXT NOT NULL,
+    group_id TEXT NOT NULL,
+    group_owner TEXT NOT NULL,
+    perso_kyber_public BLOB,
+    perso_kyber_secret BLOB,
+    root_key BLOB,
+    members TEXT
+
 );
 
 CREATE TABLE messages (
@@ -39,8 +53,8 @@ CREATE TABLE profiles (
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE chat_members (
+CREATE TABLE group_members (
     group_id TEXT,
-    member TEXT,
-    shared_secret BLOB
+    member_id TEXT,
+    member_pk
 );
