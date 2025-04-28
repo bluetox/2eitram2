@@ -2,31 +2,6 @@ const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 const { isPermissionGranted, requestPermission, sendNotification, } = window.__TAURI__.notification;
 
-const toggleBtn = document.getElementById('open-sidebar');
-const disconnect = document.getElementById('disconnect');
-const params_button = document.getElementById('settings-button');
-const parameter_exit = document.getElementById('parameter-exit');
-parameter_exit.addEventListener('click', () => {
-  document.getElementById('parameter-view').style.display = 'none';
-});
-params_button.addEventListener('click', () => {
-  console.log('did settings');
-  document.getElementById('parameter-view').style.display = 'flex';
-});
-
-disconnect.addEventListener('click', () => {
-  window.location = "index.html";
-})
-const sidebar = document.getElementById('sidebar');
-const closeSidebar = document.getElementById('close-sidebar');
-closeSidebar.addEventListener('click', () => {
-  sidebar.classList.remove('active');
-});;
-
-  toggleBtn.addEventListener('click', () => {
-    sidebar.classList.toggle('active');
-  });
-
 let permissionGranted = await isPermissionGranted();
 
 if (!permissionGranted) {
@@ -107,6 +82,37 @@ async function load_tauri() {
     document.getElementById("add-chat").addEventListener("click", openAddChatChoice);
     document.getElementById("back-to-chats").addEventListener("click", closeChat);
     document.getElementById("submit-new-chat").addEventListener("click", submitNewChat);
+    const toggleBtn = document.getElementById('open-sidebar');
+    const disconnect = document.getElementById('disconnect');
+    const params_button = document.getElementById('settings-button');
+    const parameterExit = document.getElementById('parameter-exit');
+    const addConvExit = document.getElementById('add-conv-exit');
+    addConvExit.addEventListener('click', () => {
+      document.getElementById('create-conv-container').style.display = 'none';
+    });
+    parameterExit.addEventListener('click', () => {
+      document.getElementById('parameter-view').style.display = 'none';
+    });
+    params_button.addEventListener('click', () => {
+      console.log('did settings');
+      document.getElementById('parameter-view').style.display = 'flex';
+    });
+    
+    disconnect.addEventListener('click', () => {
+      window.location = "index.html";
+    })
+    const sidebar = document.getElementById('sidebar');
+    
+      toggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('active');
+        const filter = document.getElementById("dark-sidebar-filter")
+        filter.style.display = "flex";
+        filter.addEventListener('click', () => {
+          sidebar.classList.remove('active');
+          filter.style.display = "none";
+        })
+      });
+    
   }
 }
 load_tauri();
@@ -114,8 +120,11 @@ load_tauri();
 async function checkPassword() {
   let password = document.getElementById("passwordInput").value;
   document.getElementById("passwordInput").value = null;
-  const accountCred = await invoke("generate_dilithium_keys", {password: password});
-  console.log(accountCred);
+  const userId = await invoke("generate_dilithium_keys", {password: password});
+  document.getElementById("user-id").textContent = userId;
+  document.getElementById("copy-perso-id").addEventListener('click', async () => {
+    await navigator.clipboard.writeText(userId);
+  })
   if (password) {
     document.getElementById("passwordOverlay").style.display = "none";
     document.getElementById("container").style.display = "flex";
@@ -175,6 +184,7 @@ async function openChat(chatName, userId, chatId) {
     if (!message) return;
 
     await invoke("send_message", {
+      chatId: chatId,
       dstIdHexs: userId,
       messageString: message
     });
@@ -185,12 +195,6 @@ async function openChat(chatName, userId, chatId) {
     newMessage.classList.add("message", "message-sent");
     newMessage.innerText = message;
     chatMessages.appendChild(newMessage);
-
-    await invoke("save_message", {
-      chatId,
-      senderId: userId,
-      message
-    });
 
     chatMessages.scrollTop = chatMessages.scrollHeight;
   };
@@ -274,7 +278,7 @@ async function submitNewChat() {
     }
     const newChat = document.createElement("div");
     newChat.classList.add("chat-item");
-    const chatId = await invoke("add_chat", {name: chatName, dstUserId: userId});
+    const chatId = await invoke("create_private_chat", {name: chatName, dstUserId: userId});
 
     newChat.id = chatId;
 

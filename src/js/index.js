@@ -4,7 +4,7 @@ let mnemonicPhrase = null;
 async function load_profiles() {
     let profiles = await invoke("get_profiles");
     const profilesDiv = document.getElementById('profiles');
-    console.log(profiles);
+    profilesDiv.innerHTML = "";
     for (const profile of profiles) {
         let html_element = createProfileCard(profile.profile_name, "assets/pp1.jpg");
         profilesDiv.appendChild(html_element);
@@ -123,5 +123,6 @@ document.getElementById('finish').onclick = async () => {
   pages.add.classList.remove('active');
   pages.select.classList.add('active');
   let mnemonicContainer = document.getElementById("mnemonic-container");
-  mnemonicContainer.innerHTML = ""
+  mnemonicContainer.innerHTML = "";
+  load_profiles();
 };
