@@ -15,6 +15,7 @@ if (permissionGranted) {
 
 async function loadExistingChats() {
   const chatItemsContainer = document.getElementById("chatItems");
+  chatItemsContainer.innerHTML = "";
   const chatList = await invoke("get_chats");
   console.log(chatList);
 
@@ -75,6 +76,7 @@ async function loadExistingChats() {
 
 async function load_tauri() {
   if (window.__TAURI__) {
+    await invoke("terminate_any_client");
     loadExistingChats();
     await listenForMessages();
 
@@ -188,6 +190,7 @@ async function openChat(chatName, userId, chatId) {
       dstIdHexs: userId,
       messageString: message
     });
+    loadExistingChats();
 
     input.value = "";
 
@@ -208,6 +211,12 @@ function isHTML(str) {
   return Array.from(doc.body.childNodes).some((node) => node.nodeType === 1);
 }
 
+async function listenForInvites() {
+  listen("new-chat"), async () => {
+    loadExistingChats();
+  }
+}
+listenForInvites();
 async function listenForMessages() {
   listen("received-message", async (event) => {
     const data = JSON.parse(event.payload);
@@ -226,6 +235,7 @@ async function listenForMessages() {
       newMessage.innerHTML = decodeHTMLEntities(message);
       chatMessages.appendChild(newMessage);
       chatMessages.scrollTop = chatMessages.scrollHeight;
+      loadExistingChats();
     } catch (error) {
       console.error("Failed to fetch chat name or save received message:", error);
     }
@@ -256,7 +266,6 @@ function openAddChatChoice() {
   });
 }
 
-
 function openAddChatForm() {
   document.getElementById("addChatForm").style.display = "flex";
 }
@@ -276,45 +285,8 @@ async function submitNewChat() {
     if (!isValid32ByteHex(userId)) {
       return
     }
-    const newChat = document.createElement("div");
-    newChat.classList.add("chat-item");
     const chatId = await invoke("create_private_chat", {name: chatName, dstUserId: userId});
-
-    newChat.id = chatId;
-
-    const chatAvatar = document.createElement("div");
-    chatAvatar.classList.add("chat-avatar");
-    chatAvatar.textContent = chatName.charAt(0).toUpperCase();
-
-    const chatContent = document.createElement("div");
-    chatContent.classList.add("chat-content");
-
-    const chatNameDiv = document.createElement("div");
-    chatNameDiv.classList.add("chat-name");
-    chatNameDiv.textContent = chatName;
-
-    const chatMessageDiv = document.createElement("div");
-    chatMessageDiv.classList.add("chat-message");
-    chatMessageDiv.textContent = userId;
-
-    chatContent.appendChild(chatNameDiv);
-    chatContent.appendChild(chatMessageDiv);
-
-    newChat.appendChild(chatAvatar);
-    newChat.appendChild(chatContent);
-
-    newChat.onclick = async () => { 
-      if (await invoke("has_shared_secret", {chatId: chatId}) == true) {
-        openChat(chatName, userId, chatId)
-      }
-      else {
-        await invoke("establish_ss", {dstUserId: userId, chatId: chatId})
-      }
-    };
-    const chatItemsContainer = document.getElementById("chatItems");
-    chatItemsContainer.appendChild(newChat);
-
-
+    loadExistingChats();
     console.log(`Inserted new chat with user ${userId}: ${message}`);
     closeAddChatForm();
   } else {

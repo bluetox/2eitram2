@@ -1,9 +1,9 @@
 use once_cell::sync::OnceCell;
+use once_cell::sync::Lazy;
 use ring::signature::KeyPair;
 use std::env;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager as _};
-use tauri::Wry;
 use tokio::sync::Mutex;
 use sqlx::{migrate::MigrateDatabase, sqlite::SqlitePoolOptions, Pool, Sqlite};
 use network::client::TcpClient;
@@ -13,81 +13,74 @@ mod database;
 mod encryption;
 mod utils;
 
-pub static GLOBAL_STORE: OnceCell<Mutex<Arc<tauri_plugin_store::Store<Wry>>>> = OnceCell::new();
+pub static GLOBAL_STORE: OnceCell<Arc<Mutex<AppHandle>>> = OnceCell::new();
 pub static PROFILE_NAME: once_cell::sync::Lazy<Mutex<String>> = once_cell::sync::Lazy::new(|| Mutex::new(String::new()));
 
-lazy_static::lazy_static! {
-    pub static ref ENCRYPTION_KEY: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
-}
-lazy_static::lazy_static! {
-    pub static ref TCP_CLIENT: Arc<Mutex<TcpClient>> = Arc::new(Mutex::new(TcpClient::new()));
-}
-lazy_static::lazy_static! {
-    pub static ref KEYS : Arc<Mutex<Option<modules::objects::Keys>>> = Arc::new(Mutex::new(None));
-}
+static GLOBAL_CLIENT: Lazy<Mutex<Option<TcpClient>>> = Lazy::new(|| Mutex::new(None));
+static GLOBAL_KEYS: Lazy<Mutex<Option<modules::objects::Keys>>> = Lazy::new(|| Mutex::new(None));
+
 pub static GLOBAL_DB: OnceCell<Pool<Sqlite>> = OnceCell::new();
 
-//#[tauri::command]
-//async fn create_group_chat(chat_name: String, members: Vec<String>) {
-//    let creator_name = utils::get_profile_name().await;
-//    let mut index = 0;
-//    let mut root_key = vec![0u8; 32];
-//    OsRng.fill_bytes(&mut root_key);
-//    let mut group = mls_rust::GroupChat::create(creator_name.clone(), root_key);
-//    group.print_root("Initial");
-//
-//    for user_id in &members {
-//        if user_id.len() != 64 || hex::decode(user_id).is_err(){
-//            return;
-//        }
-//    }
-//    let group_id = uuid::Uuid::new_v4().to_string();
-//    for user_id in &members{
-//        let packet = crate::network::packet::create_add_chat_packet(&user_id, &chat_name, &group_id).await;
-//        {
-//            let mut client = TCP_CLIENT.lock().await;
-//            client.send_group_invite(packet).await;
-//        }
-//    }
-//}
-
 #[tauri::command]
-async fn generate_dilithium_keys(app: tauri::AppHandle, password: &str) -> Result<String, String> {
-    match encryption::keys::load_keys(&password).await {
-        Ok(keys) => {
-            let full_hash_input = [
-                &keys.dilithium_keys.public[..],
-                &keys.ed25519_keys.public_key().as_ref()[..],
-                &keys.nonce[..],
-            ]
-            .concat();
-            let user_id = utils::create_user_id_hash(&full_hash_input);
-    
-            {
-                let mut keys_lock = KEYS.lock().await;
-                *keys_lock = Some(keys);
-            }
-
-            let mut new_client = TcpClient::new();
-            new_client.connect(&app).await.unwrap();
-
-            {
-                let mut client_lock = TCP_CLIENT.lock().await;
-                client_lock.shutdown().await;
-                *client_lock = new_client;
-            }
-
-            return Ok(user_id);
-        }
-        Err(e) => {
-            println!("error : {:?}", e);
-            return Err("Failed to load keys".to_string());
-        }
+async fn terminate_any_client() {
+    let mut tcp_guard = crate::GLOBAL_CLIENT.lock().await;
+                        
+    if let Some(tcp_client) = tcp_guard.as_mut() {
+        tcp_client.shutdown().await.unwrap();
+        *tcp_guard = None;
     }
 }
 
+#[tauri::command]
+async fn generate_dilithium_keys(password: &str) -> Result<String, String> {
+
+    terminate_any_client().await;
+    let keys = encryption::keys::load_keys(password)
+        .await
+        .map_err(|_| "Failed to load keys".to_string())?;
+
+    let full_hash_input = [
+        &keys.dilithium_keys.public[..],
+        &keys.ed25519_keys.public_key().as_ref()[..],
+        &keys.nonce[..],
+    ]
+    .concat();
+
+    let mut key_guard = GLOBAL_KEYS.lock().await;
+    *key_guard = Some(keys);
+    drop(key_guard);
+    
+    let mut tcp_client = TcpClient::new();
+    tcp_client.connect().await.map_err(|e| format!("Failed to create tcp client: {}", e))?;
+
+    let mut tcp_guard = GLOBAL_CLIENT.lock().await;
+    if tcp_guard.is_none() {
+      *tcp_guard = Some(
+        tcp_client
+      );
+    }
+    else {
+        tcp_client.shutdown().await.unwrap();
+        *tcp_guard = None;
+        *tcp_guard = Some(
+            tcp_client
+        );
+    }
+
+
+
+    let user_id = utils::create_user_id_hash(&full_hash_input);
+
+    Ok(user_id)
+}
+
+
 async fn setup_app_state(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let db = setup_db(app).await;
+    let guarded = Arc::new(Mutex::new(app.clone()));
+    GLOBAL_STORE
+        .set(guarded.clone())
+        .expect("GLOBAL_STORE was already set");
     GLOBAL_DB
         .set(db.clone())
         .expect("Failed to set global DB. It may have been set already.");
@@ -149,7 +142,8 @@ pub fn run() {
             database::commands::has_shared_secret,
             database::commands::delete_chat,
 
-            encryption::keys::generate_mnemonic
+            encryption::keys::generate_mnemonic,
+            terminate_any_client
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();

@@ -1,12 +1,12 @@
 use bytes::{Buf, BytesMut};
 use ring::signature::KeyPair;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::AppHandle;
 use tokio::io;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::time::{timeout, Duration};
 
 pub async fn establish_ss_with_node(read_half: &mut tokio::io::ReadHalf<TcpStream>, write_half:  &mut tokio::io::WriteHalf<TcpStream>) -> Vec<u8> {
     let mut message = BytesMut::with_capacity(1573);
@@ -29,8 +29,8 @@ pub async fn establish_ss_with_node(read_half: &mut tokio::io::ReadHalf<TcpStrea
     return ss;
 }
 
-pub async fn send_cyphertext(dst_id_bytes: Vec<u8>, cyphertext: Vec<u8>) -> Vec<u8> {
-    let keys_lock = super::super::KEYS.lock().await;
+pub async fn send_cyphertext(dst_id_bytes: Vec<u8>, cyphertext: Vec<u8>) {
+    let keys_lock = crate::GLOBAL_KEYS.lock().await;
     let keys = keys_lock.as_ref().expect("Keys not initialized");
 
     let dilithium_public_key = keys.dilithium_keys.public.clone();
@@ -72,28 +72,30 @@ pub async fn send_cyphertext(dst_id_bytes: Vec<u8>, cyphertext: Vec<u8>) -> Vec<
     raw_packet.extend_from_slice(&ed25519_signature);
     raw_packet.extend_from_slice(&sign_part);
 
-    let client = super::super::TCP_CLIENT.lock().await;
-    let node_shared_secret = client.get_node_shared_secret().await;
-    let encrypted_packet = crate::encryption::utils::encrypt_packet(&raw_packet, &node_shared_secret).await;
-    drop(client);
-
-    return encrypted_packet;
+    let mut tcp_guard = crate::GLOBAL_CLIENT.lock().await;
+                        
+    if let Some(tcp_client) = tcp_guard.as_mut() {
+        let node_shared_secret = tcp_client.get_node_shared_secret().await;
+        let encrypted_packet = crate::encryption::utils::encrypt_packet(&raw_packet, &node_shared_secret).await;
+        tcp_client.write(&encrypted_packet).await;
+    } else {
+        println!("No existing TCP client found");
+    }
 }
 
 pub async fn listen(
     read_half: &mut tokio::io::ReadHalf<tokio::net::TcpStream>,
-    app: &AppHandle,
     flag: Arc<AtomicBool>
 ) -> io::Result<()> {
     let mut buffer = BytesMut::with_capacity(1024);
     let mut chunk = vec![0u8; 1024];
     while !flag.load(Ordering::Relaxed) {
-        match read_half.read(&mut chunk).await {
-            Ok(0) => {
+        match timeout(Duration::from_millis(500), read_half.read(&mut chunk)).await {
+            Ok(Ok(0)) => {
                 println!("Disconnected from server.");
                 break;
             }
-            Ok(n) => {
+            Ok(Ok(n)) => {
                 buffer.extend_from_slice(&chunk[..n]);
 
                 if buffer.len() < 3 {
@@ -113,16 +115,12 @@ pub async fn listen(
 
                 match prefix {
                     2 => {
-                        match crate::network::handle::handle_kyber(&buffer[..payload_size].to_vec()).await {
-                            Ok(response) => {
-                                println!("Kyber packet handled successfully.");
-                                let mut client = super::super::TCP_CLIENT.lock().await;
-                                client.write(&response).await;
-                            }
-                            Err(err) => {
-                                println!("Error handling kyber packet: {}", err);
-                            }
+                       match crate::network::handle::handle_kyber(&buffer[..payload_size].to_vec()).await {
+                        Ok(_) => {},
+                        Err(err) => {
+                            println!("Error handling kyber: {}", err);
                         }
+                       }
                     }
                     3 => {
                         if let Err(err) = crate::network::handle::handle_ct(&buffer[..payload_size].to_vec()).await {
@@ -130,7 +128,14 @@ pub async fn listen(
                         }                        
                     }
                     4 => {
-                        let _ = crate::network::handle::handle_message(&buffer[..payload_size].to_vec(), app).await;
+                        match crate::network::handle::handle_message(&buffer[..payload_size].to_vec()).await {
+                            Ok(_) => {},
+                            Err(err) => {
+                                println!("Payload size: {}", payload_size);
+                                println!("Error handling message: {}", err);
+                            }
+                        }
+                        
                     }
 
                     176 => {
@@ -163,13 +168,24 @@ pub async fn listen(
                 buffer.advance(payload_size);
                 
             }
-            Err(e) => {
+            Ok(Err(e)) => {
                 eprintln!("Error reading from stream: {:?}", e);
                 break;
             }
+            Err(_) => {
+                continue;
+            }
         }
     }
-
+    let keys_lock = crate::GLOBAL_KEYS.lock().await;
+    let keys = keys_lock.as_ref().expect("Keys not initialized");
+    let full_hash_input = [
+        &keys.dilithium_keys.public[..],
+        &keys.ed25519_keys.public_key().as_ref()[..],
+        &keys.nonce[..],
+    ]
+    .concat();
+    let user_id = crate::utils::create_user_id_hash(&full_hash_input);
     Ok(())
 }
 

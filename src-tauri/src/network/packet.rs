@@ -56,8 +56,9 @@ pub async fn create_add_chat_packet(dst_id_hex: &str, groupe_name: &str, group_i
 }
 */
 pub async fn create_get_nodes_packet() -> Vec<u8>{
-    let keys_lock = super::super::KEYS.lock().await;
-    let keys = keys_lock.as_ref().ok_or("Keys not initialized").unwrap();
+    let keys_lock = crate::GLOBAL_KEYS.lock().await;
+    let keys = keys_lock.as_ref().expect("Keys not initialized");
+
     
     let dilithium_public_key = &keys.dilithium_keys.public;
     let ed25519_public_key = keys.ed25519_keys.public_key().as_ref();
@@ -96,8 +97,9 @@ pub async fn create_get_nodes_packet() -> Vec<u8>{
 
 
 pub async fn create_server_connect_packet(ss : Vec<u8>) -> Result<Vec<u8>, String> {
-    let keys_lock = super::super::KEYS.lock().await;
-    let keys = keys_lock.as_ref().ok_or("Keys not initialized")?;
+    let keys_lock = crate::GLOBAL_KEYS.lock().await;
+    let keys = keys_lock.as_ref().expect("Keys not initialized");
+
     
     let dilithium_public_key = &keys.dilithium_keys.public;
     let ed25519_public_key = keys.ed25519_keys.public_key().as_ref();
@@ -141,8 +143,9 @@ pub async fn create_send_message_packet(
     ss: &Vec<u8>,
     nss: &Vec<u8>
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    let keys_lock = super::super::KEYS.lock().await;
-    let keys = keys_lock.as_ref().ok_or("Keys not initialized")?;
+    let keys_lock = crate::GLOBAL_KEYS.lock().await;
+    let keys = keys_lock.as_ref().expect("Keys not initialized");
+
 
     let dst_id_bytes = hex::decode(&dst_id_hexs)?;
 

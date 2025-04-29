@@ -1,21 +1,19 @@
 use bytes::BytesMut;
 use ring::signature::KeyPair;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::AppHandle;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-const NODE_ADDRESS: &str = "148.113.191.144";
+const NODE_ADDRESS: &str = "127.0.0.1";
 
 pub struct TcpClient {
     write_half: Arc<Mutex<Option<tokio::io::WriteHalf<TcpStream>>>>,
     stop_flag: Arc<AtomicBool>,
-    pub shared_secrets: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     pub node_shared_secret: Arc<Mutex<Vec<u8>>>,
+    listener: Option<tokio::task::JoinHandle<()>>
 }
 
 impl TcpClient {
@@ -23,15 +21,13 @@ impl TcpClient {
         Self {
             write_half: Arc::new(Mutex::new(None)),
             stop_flag: Arc::new(AtomicBool::new(false)),
-            shared_secrets: Arc::new(Mutex::new(HashMap::new())),
             node_shared_secret: Arc::new(Mutex::new(Vec::new())),
+            listener: None,
         }
     }
     
-    pub async fn connect(&mut self, app: &AppHandle) -> Result<(), String> {
+    pub async fn connect(&mut self) -> Result<(), String> {
         const NODE_PORT: u16 = 32775;
-
-        self.load_shared_secrets().await;
     
         let mut stream = TcpStream::connect(format!("{}:{}", NODE_ADDRESS, NODE_PORT)).await
             .map_err(|e| format!("Failed to connect to main node: {}", e))?;
@@ -87,17 +83,13 @@ impl TcpClient {
             *current = Some(write_half);
         }
     
-        let stop_flag = Arc::new(AtomicBool::new(false));
-        let flag_clone = Arc::clone(&stop_flag);
-        tokio::spawn({
-            let app = app.clone();
-            async move {
-                if let Err(e) = super::utils::listen(&mut read_half, &app, flag_clone).await {
+        let flag_clone = Arc::clone(&self.stop_flag);
+        let handle = tokio::spawn(async move {
+                if let Err(e) = super::utils::listen(&mut read_half, flag_clone).await {
                     eprintln!("Listener error: {:?}", e);
                 }
-                println!("CONNEXION ENDED");
-            }
-        });
+            });
+            self.listener = Some(handle);
     
         Ok(())
     }
@@ -120,8 +112,9 @@ impl TcpClient {
     }
 
     pub async fn send_kyber_key(&mut self, dst_id_bytes: Vec<u8>, kyber_keys: &safe_pqc_kyber::Keypair) {
-        let keys_lock = crate::KEYS.lock().await;
+        let keys_lock = crate::GLOBAL_KEYS.lock().await;
         let keys = keys_lock.as_ref().expect("Keys not initialized");
+    
         let kyber_public_key = kyber_keys.public;
 
         let dilithium_public_key = keys.dilithium_keys.public.clone();
@@ -174,33 +167,8 @@ impl TcpClient {
         }
     }
 
-    pub async fn send_group_invite(&mut self, encrypted_packet: Vec<u8>) {
-        let mut locked = self.write_half.lock().await;
-        if let Some(ref mut writer) = *locked {
-            writer.write_all(&encrypted_packet).await.unwrap();
-            println!("Done.");
-        }
-    }
-
     pub async fn get_node_shared_secret(&self) -> Vec<u8> {
         self.node_shared_secret.lock().await.to_vec()
-    }
-
-    pub async fn set_node_shared_secret(&mut self, ss: Vec<u8>) {
-        let mut locked_ss = self.node_shared_secret.lock().await;
-        *locked_ss = ss;
-    }
-
-    pub async fn get_shared_secret(&self, user_id: &str) -> Result<Vec<u8>, String> {
-        let locked_ss = self.shared_secrets.lock().await;
-        match locked_ss.get(user_id) {
-            Some(secret) => Ok(secret.clone()),
-            None => Err(format!("Shared secret not found for user_id: {}", user_id)),
-        }
-    }
-    pub async fn set_shared_secret(&mut self, user_id: &str, ss: &Vec<u8>) {
-        let mut locked_ss = self.shared_secrets.lock().await;
-        locked_ss.insert(user_id.to_string(), ss.to_vec());
     }
 
     pub async fn write(&mut self, data: &Vec<u8>) {
@@ -212,16 +180,26 @@ impl TcpClient {
         }
     }
 
-    pub async fn shutdown(&mut self) {
-        let mut locked = self.write_half.lock().await;
-        if let Some(ref mut writer) = *locked {
-            let _ = writer.shutdown().await;
-            self.stop_flag.store(true, Ordering::Relaxed);
-        }
-    }
+    pub async fn shutdown(&mut self) -> Result<(), String> {
+        // 1) signal the listener to stop
+        self.stop_flag.store(true, Ordering::Relaxed);
+    
+        // 2) take the writer _out_ of the mutex guard, then drop the guard immediately
+        let writer_opt = {
+            let mut guard = self.write_half.lock().await;
+            guard.take()
+        };
 
-    async fn load_shared_secrets(&mut self) {
-        let mut shared_secrets = self.shared_secrets.lock().await;
-        crate::database::utils::get_shared_secrets(&mut *shared_secrets).await.unwrap();
+        // 3) drop/abort/await the listener handle
+        if let Some(handle) = self.listener.take() {
+            let _ = handle.await;
+        }
+        // now the lock is released
+        if let Some(mut writer) = writer_opt {
+            // and _now_ we await the shutdown of the socket
+            let _ = writer.shutdown().await;
+        }
+
+        Ok(())
     }
 }

@@ -1,5 +1,5 @@
 use rand::rngs::OsRng;
-use tauri::{AppHandle, Emitter};
+use tauri::Emitter;
 
 pub async fn handle_ct(buffer: &Vec<u8>) -> Result<(), String> {
     let dilithium_signature = &buffer[5..5 + 3293];
@@ -42,9 +42,6 @@ pub async fn handle_ct(buffer: &Vec<u8>) -> Result<(), String> {
         let ss = safe_pqc_kyber::decapsulate(ct, &kyber_keys.secret)
             .map_err(|e| format!("Kyber decapsulation failed: {:?}", e))?;
 
-        let mut locked_client = super::super::TCP_CLIENT.lock().await;
-        locked_client.set_shared_secret(&source_user_id, &ss.to_vec()).await;
-        
         crate::database::utils::save_shared_secret(source_user_id.clone().as_ref(), &dst_id_hex, ss.to_vec())
             .await
             .map_err(|e| format!("Failed to save shared secret: {:?}", e))?;
@@ -53,7 +50,7 @@ pub async fn handle_ct(buffer: &Vec<u8>) -> Result<(), String> {
     Ok(())
 }
 
-pub async fn handle_kyber(buffer: &Vec<u8>) -> Result<Vec<u8>, String> {
+pub async fn handle_kyber(buffer: &Vec<u8>) -> Result<(), String> {
     let mut rng = OsRng;
 
     let dilithium_signature = &buffer[5..5 + 3293];
@@ -90,14 +87,17 @@ pub async fn handle_kyber(buffer: &Vec<u8>) -> Result<Vec<u8>, String> {
 
     let user_id = crate::utils::create_user_id_hash(&full_hash_input);
 
-    let mut locked_client = super::super::TCP_CLIENT.lock().await;
-    locked_client.set_shared_secret(&user_id, &shared_secret.to_vec()).await;
-    drop(locked_client);
-    if crate::database::utils::save_shared_secret(&user_id.clone(), &dst_id_hex ,shared_secret.to_vec())
+    if crate::database::utils::save_shared_secret(&user_id, &dst_id_hex ,shared_secret.to_vec())
         .await
         .is_err()
     {
-        return Err("Failed to save shared secret".to_string());
+        crate::database::commands::create_private_chat("invite", &user_id).await.unwrap();
+        crate::database::utils::save_shared_secret(&user_id, &dst_id_hex ,shared_secret.to_vec()).await.unwrap();
+        let arc_app = crate::GLOBAL_STORE.get().expect("not initialized").clone();
+        let app = arc_app.lock().await;
+
+        app.emit(
+            "new-chat", {}).map_err(|_| "Failed to emit new chat to webview")?;
     }
 
     let source_id_bytes = match hex::decode(user_id) {
@@ -105,12 +105,12 @@ pub async fn handle_kyber(buffer: &Vec<u8>) -> Result<Vec<u8>, String> {
         Err(_) => return Err("Failed to decode dst_id_hex".to_string()),
     };
     
-    let response = crate::network::utils::send_cyphertext(source_id_bytes, ciphertext.to_vec()).await;
+    crate::network::utils::send_cyphertext(source_id_bytes, ciphertext.to_vec()).await;
 
-    Ok(response)
+    Ok(())
 }
 
-pub async fn handle_message(buffer: &Vec<u8>, app: &AppHandle) -> Result<(), String> {
+pub async fn handle_message(buffer: &Vec<u8>) -> Result<(), String> {
     let dilithium_signature = &buffer[5 .. 5 + 3293];
     let ed25519_signature = &buffer[5 + 3293 .. 5 + 3293 + 64];
 
@@ -153,7 +153,9 @@ pub async fn handle_message(buffer: &Vec<u8>, app: &AppHandle) -> Result<(), Str
         Ok(decrypted_message) => {
 
             crate::database::utils::save_message(&chat_id, &source_id, &decrypted_message, "received").await?;
-            
+            let arc_app = crate::GLOBAL_STORE.get().expect("not initialized").clone();
+            let app = arc_app.lock().await;
+    
             app.emit(
                 "received-message",
                 format!(

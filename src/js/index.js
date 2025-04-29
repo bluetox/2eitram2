@@ -2,6 +2,8 @@ const { invoke } = window.__TAURI__.core;
 
 let mnemonicPhrase = null;
 async function load_profiles() {
+    await invoke("terminate_any_client");
+    console.log("shutdown logic executed");
     let profiles = await invoke("get_profiles");
     const profilesDiv = document.getElementById('profiles');
     profilesDiv.innerHTML = "";

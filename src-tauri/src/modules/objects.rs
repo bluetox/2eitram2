@@ -1,12 +1,12 @@
 use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;
+
 pub struct Keys {
     pub dilithium_keys: pqc_dilithium::Keypair,
     pub ed25519_keys: ring::signature::Ed25519KeyPair,
-    pub kyber_keys: safe_pqc_kyber::Keypair,
+    pub global_key: Vec<u8>,
     pub nonce: [u8; 16],
 }
-
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Message {
     pub message_id: String,

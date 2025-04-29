@@ -8,7 +8,7 @@ CREATE TABLE chats (
 );
 
 CREATE TABLE private_chats (
-    chat_id TEXT NOT NULL,
+    chat_id TEXT PRIMARY KEY NOT NULL ,
     dst_user_id TEXT NOT NULL,
     send_root_secret BLOB,
     recv_root_secret BLOB,
@@ -44,8 +44,6 @@ CREATE TABLE profiles (
     profile_name TEXT,
     dilithium_public BLOB,
     dilithium_private BLOB,
-    kyber_public BLOB,
-    kyber_private BLOB,
     ed25519 BLOB,
     nonce BLOB,
     user_id TEXT,

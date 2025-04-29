@@ -3,7 +3,7 @@ html {
 }
 
 body {
-    height: 100vh;
+    height: 100dvh;
     background: #121212;
     overflow: hidden;
     margin: 0px;
@@ -207,14 +207,14 @@ body {
 }
 
 .chat-topbar {
-    background: #1e1e1e;
+    background: #0a0613;
     color: white;
     height: 8%;
     display: flex;
     align-items: center;
     padding: 0 15px;
     font-size: 20px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .back-button {
@@ -224,6 +224,7 @@ body {
     }
 .messages {
     background-size: cover;
+    background-color: #060509;
     background-position: center;
     background-repeat: no-repeat;
     flex-grow: 1;
@@ -279,7 +280,7 @@ body {
 
 .input-container input {
     flex: 1;
-    background-color: #313133;
+    background-color: #151221;
     padding: 10px;
     border: none;
     outline: none;

@@ -1,8 +1,5 @@
 use std::collections::HashMap;
-use super::super::{
-        GLOBAL_DB,
-        ENCRYPTION_KEY
-};
+use crate::GLOBAL_DB;
 
 #[derive(Debug, serde::Serialize, sqlx::FromRow)]
 pub struct Profile {
@@ -43,7 +40,7 @@ pub async fn get_chat_kyber_keys(chat_id: &str) -> Result<safe_pqc_kyber::Keypai
     Ok(kyber_keys)
 }
 
-pub async fn get_shared_secrets(shared_secrets: &mut HashMap<String, Vec<u8>>) -> Result<(), String> {
+pub async fn _get_shared_secrets(shared_secrets: &mut HashMap<String, Vec<u8>>) -> Result<(), String> {
     let db = GLOBAL_DB
         .get()
         .ok_or_else(|| "Database not initialized".to_string())?;
@@ -113,9 +110,6 @@ pub async fn save_shared_secret(source_id: &str, dst_id: &str, shared_secret: Ve
             .execute(db)
             .await
             .map_err(|e| format!("Error updating shared secret: {}", e))?;
-    
-        println!("Successfully saved shared secret for chat_id: {}", chat_id);
-    
 
     Ok(chat_id)
 }
@@ -158,7 +152,11 @@ pub async fn save_message(
     let db = GLOBAL_DB
         .get()
         .ok_or_else(|| "Database not initialized".to_string())?;
-    let key = ENCRYPTION_KEY.lock().await;
+    
+    let keys_lock = crate::GLOBAL_KEYS.lock().await;
+    let keys = keys_lock.as_ref().expect("Keys not initialized");
+    let key = &keys.global_key;
+
     let encrypted_message_vec = crate::encryption::utils::encrypt_message(&message, &key).await;
     let encrypted_message = hex::encode(encrypted_message_vec);
 

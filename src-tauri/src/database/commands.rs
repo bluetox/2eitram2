@@ -2,7 +2,6 @@ use crate::{
     utils,
     encryption,
     GLOBAL_DB,
-    ENCRYPTION_KEY,
     PROFILE_NAME,
     modules::objects
 };
@@ -110,8 +109,10 @@ pub async fn get_messages(
 ) -> Result<Vec<objects::Message>, String> {
     let db = &state.db;
 
-    let key = ENCRYPTION_KEY.lock().await;
-    
+    let keys_lock = crate::GLOBAL_KEYS.lock().await;
+    let keys = keys_lock.as_ref().expect("Keys not initialized");
+    let key = &keys.global_key;
+
     let messages: Vec<objects::Message> =
         sqlx::query_as::<_, objects::Message>("SELECT * FROM messages WHERE chat_id = ?1")
             .bind(chat_id)
@@ -139,7 +140,6 @@ pub async fn get_messages(
 pub async fn create_profil(name: &str, mut password: String, mut phrase: String) -> Result<(), String> {
 
     let rng = SystemRandom::new();
-    let mut kyber_rng = rand::rngs::OsRng;
 
     let mnemonic = Mnemonic::parse_normalized(&phrase).map_err(|_| "Invalid recovery phrase")?;
 
@@ -161,8 +161,6 @@ pub async fn create_profil(name: &str, mut password: String, mut phrase: String)
     SecureRandom::fill(&rng, &mut nonce)
         .map_err(|_| "Failed to generate random bytes".to_string())?;
 
-    let kyber_keys = safe_pqc_kyber::keypair(&mut kyber_rng);
-
     let full_hash_input = [
         &dilithium_keys.public[..],
         &ed25519_keys.public_key().as_ref()[..],
@@ -181,13 +179,11 @@ pub async fn create_profil(name: &str, mut password: String, mut phrase: String)
     password.zeroize();
     sqlx::query(
         "INSERT INTO profiles 
-         (dilithium_public, dilithium_private, kyber_public, kyber_private, ed25519, nonce, user_id, password_hash, profile_name) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+         (dilithium_public, dilithium_private, ed25519, nonce, user_id, password_hash, profile_name) 
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
     )
         .bind(encryption::utils::encrypt_data(&dilithium_keys.public, &key).await)
         .bind(encryption::utils::encrypt_data(dilithium_keys.expose_secret(), &key).await)
-        .bind(encryption::utils::encrypt_data(&kyber_keys.public, &key).await)
-        .bind(encryption::utils::encrypt_data(&kyber_keys.secret, &key).await)
         .bind(encryption::utils::encrypt_data(pkcs8_bytes.as_ref(), &key).await)
         .bind(encryption::utils::encrypt_data(&nonce, &key).await)
         .bind(user_id)
@@ -243,8 +239,6 @@ pub async fn create_private_chat(
         .await
         .map_err(|e| format!("Error saving chat: {}", e))?;
 
-    println!("Saved chat {} for user {} successfully", name, dst_user_id);
-
     Ok(chat_id)
 }
 
@@ -267,4 +261,41 @@ pub async fn has_shared_secret(chat_id: &str) -> Result<Option<bool>, String> {
         Some((_, Some(_))) => Ok(Some(true)),
         None => Ok(None),
     }
+}
+
+pub async fn need_for_rekey(chat_id: &str) -> Result<bool, String> {
+    let db = GLOBAL_DB
+        .get()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+
+    let result: Option<(i64,)> = sqlx::query_as(
+        "SELECT COUNT(*) FROM messages WHERE chat_id = ? AND message_type = 'sent'"
+    )
+    .bind(chat_id)
+    .fetch_optional(db)
+    .await
+    .map_err(|e| format!("Failed to count messages: {}", e))?;
+
+    Ok(matches!(result, Some((n,)) if n != 0 && n % 4 == 0))
+}
+
+pub async fn new_chat_keypair(
+    keypair: &safe_pqc_kyber::Keypair,
+    chat_id: &str
+) -> Result<(), String> {
+    let db = GLOBAL_DB
+        .get()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+
+    sqlx::query(
+        "UPDATE private_chats SET perso_kyber_public = ?, perso_kyber_secret = ? WHERE chat_id = ?"
+    )
+    .bind(keypair.public.to_vec())
+    .bind(keypair.secret.to_vec())
+    .bind(chat_id)
+    .execute(db)
+    .await
+    .map_err(|e| format!("Error upserting chat keypair: {}", e))?;
+
+    Ok(())
 }
