@@ -6,6 +6,19 @@
   <title>Messenger</title>
   <link rel="stylesheet" href="css/chat.css" />
   <script type="module" src="js/chat.js" defer></script>
+  <script src="./assets/purify.min.js"></script>
+  <meta http-equiv="Content-Security-Policy" content="
+  default-src 'none';
+  base-uri 'none';
+  script-src 'none';
+  connect-src 'self' http://ipc.localhost;
+  font-src 'self';
+  frame-src 'none';
+  img-src 'self' data: blob:;
+  object-src 'none';
+  style-src 'self' 'unsafe-inline';
+">
+
 </head>
 
 <body>
@@ -46,6 +59,7 @@
       <h4 id="user-id"></h2>
         <button id="copy-perso-id">HERE</button>
       <div class="sidebar-button" id="settings-button">Settings</div>
+      <div class="sidebar-button" id="group-chat">Group Chat</div>
       <div class="sidebar-button" id="disconnect">Disconnect</div>
     </div>
 
@@ -70,6 +84,7 @@
       <div class="chat-topbar">
         <span class="back-button" id="back-to-chats">⬅</span>
         <span id="chatTitle">Chat</span>
+        <svg class="video-call-button" id="video-call-button" xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 24 24"><path fill="currentColor" d="M18 7c0-1.103-.897-2-2-2H4c-1.103 0-2 .897-2 2v10c0 1.103.897 2 2 2h12c1.103 0 2-.897 2-2v-3.333L22 17V7l-4 3.333V7z"/></svg>
       </div>
       <div class="messages" id="chatMessages">
       </div>
@@ -79,7 +94,11 @@
       </div>
     </div>
   </div>
-
+  <div class="video-call-container" id="video-call-container" style="display: none;">
+    <canvas id="receivedCanvas"class="main-video" autoplay muted></canvas>
+    <video id="videoElement" class="secondary-video" autoplay muted></video>
+    <button class="red-button" id="exit-chat">End Call</button>
+  </div>
   <div class="add-chat-form" id="addChatForm">
     <div class="form-container">
       <h3>Create New Chat</h3>

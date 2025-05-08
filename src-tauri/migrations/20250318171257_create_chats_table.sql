@@ -24,9 +24,8 @@ CREATE TABLE group_chats (
     group_owner TEXT NOT NULL,
     perso_kyber_public BLOB,
     perso_kyber_secret BLOB,
-    root_key BLOB,
-    members TEXT
-
+    root_secret BLOB,
+    group_data BLOB
 );
 
 CREATE TABLE messages (
@@ -49,10 +48,4 @@ CREATE TABLE profiles (
     user_id TEXT,
     password_hash TEXT,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE group_members (
-    group_id TEXT,
-    member_id TEXT,
-    member_pk
 );

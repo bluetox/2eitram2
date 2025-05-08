@@ -69,12 +69,11 @@ body {
 }
 
 .chat-header {
-    position: flex;
     top: 0;
     left: 0;
     height: 8%;
     background: #0a0613;
-    color: white;
+    color: #e3e0ee;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -167,7 +166,7 @@ body {
     align-items: center;
     justify-content: center;
     font-weight: bold;
-    color: white;
+    color: #e3e0ee;
     margin-right: 12px;
 }
 
@@ -180,7 +179,7 @@ body {
 .chat-name {
     font-size: 16px;
     font-weight: bold;
-    color: white;
+    color: #e3e0ee;
 }
 
 .chat-message {
@@ -208,14 +207,71 @@ body {
 
 .chat-topbar {
     background: #0a0613;
-    color: white;
+    color: #e3e0ee;
     height: 8%;
     display: flex;
     align-items: center;
     padding: 0 15px;
     font-size: 20px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    position: relative;
 }
+
+.video-call-button {
+    width: 30px;
+    height: 30px;
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+}
+
+.video-call-container {
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    background-color: #1a1c1e;
+    position: fixed;
+    z-index: 100;
+    display: flex;
+    flex-direction: column; /* Stack the video and button vertically */
+}
+
+.main-video {
+    flex: 1;
+    width: 100%;
+    object-fit: cover;
+}
+
+.secondary-video {
+    width: 150px;
+    height: 150px;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    border: 2px solid #fff;
+    background-color: #000;
+    z-index: 101;
+}
+
+.red-button {
+    width: 100%;
+    padding: 15px;
+    background-color: red;
+    color: white;
+    font-size: 18px;
+    border: none;
+    cursor: pointer;
+    text-align: center;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    z-index: 102;
+}
+
+
 
 .back-button {
     font-size: 24px;
@@ -260,14 +316,14 @@ body {
 
 .message-sent {
     background: #6200ea;
-    color: white;
+    color: #e3e0ee;
     margin-right: 10px;
     align-self: flex-end;
 }
 
 .message-received {
     background: #444;
-    color: white;
+    color: #e3e0ee;
     margin-left: 10px;
     align-self: flex-start;
 }
@@ -283,6 +339,7 @@ body {
     background-color: #151221;
     padding: 10px;
     border: none;
+    color: #e3e0ee;
     outline: none;
     height: 20px;
     border-radius: 15px;
@@ -293,7 +350,7 @@ body {
     padding: 10px;
     background: #6200ea;
     border: none;
-    color: white;
+    color: #e3e0ee;
     cursor: pointer;
     border-radius: 15px;
 }
@@ -305,7 +362,7 @@ body {
     width: 45px;
     height: 45px;
     background: #412d78;
-    color: white;
+    color: #e3e0ee;
     border: none;
     border-radius: 50%;
     font-size: 24px;
@@ -349,7 +406,7 @@ body {
     background: #333;
     border: none;
     border-radius: 5px;
-    color: white;
+    color: #e3e0ee;
 }
 
 .add-chat-form button {
@@ -358,7 +415,7 @@ body {
     background: #6200ea;
     border: none;
     border-radius: 5px;
-    color: white;
+    color: #e3e0ee;
     cursor: pointer;
 }
 
@@ -412,7 +469,7 @@ body {
     padding: 10px 15px;
     background: #6200ea;
     border: none;
-    color: white;
+    color: #e3e0ee;
     border-radius: 5px;
     cursor: pointer;
 }
@@ -479,7 +536,7 @@ body {
     background: #0000001c;
     display: none;
     flex-direction: column;
-    color: white;
+    color: #e3e0ee;
     z-index: 4;
 }
 

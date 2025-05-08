@@ -7,7 +7,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-const NODE_ADDRESS: &str = "127.0.0.1";
+const NODE_ADDRESS: &str = "91.175.221.153";
 
 pub struct TcpClient {
     write_half: Arc<Mutex<Option<tokio::io::WriteHalf<TcpStream>>>>,
@@ -26,7 +26,9 @@ impl TcpClient {
         }
     }
     
-    pub async fn connect(&mut self) -> Result<(), String> {
+    pub async fn connect(
+        &mut self
+    ) -> Result<(), String> {
         const NODE_PORT: u16 = 32775;
     
         let mut stream = TcpStream::connect(format!("{}:{}", NODE_ADDRESS, NODE_PORT)).await
@@ -73,7 +75,6 @@ impl TcpClient {
             let ss = super::utils::establish_ss_with_node(&mut read_half, &mut write_half).await;
             let mut locked_ss = self.node_shared_secret.lock().await;
             *locked_ss = ss.clone();
-    
             let buffer = super::packet::create_server_connect_packet(ss).await?;
             write_half.write_all(&buffer).await
                 .map_err(|e| format!("Failed to write server_connect: {}", e))?;
@@ -95,10 +96,12 @@ impl TcpClient {
     }
     
     
-    pub async fn send_message(&mut self, chat_id: &str, dst_id_hexs: &str, message_string: &str) {
+    pub async fn send_message(
+        &mut self, chat_id: &str, dst_id_hexs: &str, message_string: &str
+    ) {
         {
             let nss = self.get_node_shared_secret().await;
-            let ss = crate::encryption::keys::ratchet_forward(&"send_root_secret", &chat_id).await.unwrap();
+            let ss = crate::crypto::keys::ratchet_forward(&"send_root_secret", &chat_id).await.unwrap();
             let encrypted_packet = crate::network::packet::create_send_message_packet(dst_id_hexs, message_string, &ss.to_vec(), &nss)
             .await
             .unwrap();
@@ -110,8 +113,20 @@ impl TcpClient {
         }  
         }
     }
+    pub async fn write_enc(
+        &mut self, raw_packet: &Vec<u8>
+    ) {
+        let nss = self.get_node_shared_secret().await;
+        let encrypted_packet = crate::crypto::utils::encrypt_packet(raw_packet, &nss).await;
+        let mut locked = self.write_half.lock().await;
+        if let Some(ref mut writer) = *locked {
+            writer.write_all(&encrypted_packet).await.unwrap();
+        }
+    }
 
-    pub async fn send_kyber_key(&mut self, dst_id_bytes: Vec<u8>, kyber_keys: &safe_pqc_kyber::Keypair) {
+    pub async fn send_kyber_key(
+        &mut self, dst_id_bytes: Vec<u8>, kyber_keys: &safe_pqc_kyber::Keypair
+    ) {
         let keys_lock = crate::GLOBAL_KEYS.lock().await;
         let keys = keys_lock.as_ref().expect("Keys not initialized");
     
@@ -158,7 +173,7 @@ impl TcpClient {
         raw_packet.extend_from_slice(&sign_part);
         {   
             let node_shared_secret = self.get_node_shared_secret().await;
-            let encrypted_packet = crate::encryption::utils::encrypt_packet(&raw_packet, &node_shared_secret).await;
+            let encrypted_packet = crate::crypto::utils::encrypt_packet(&raw_packet, &node_shared_secret).await;
 
             let mut locked = self.write_half.lock().await;
             if let Some(ref mut writer) = *locked {
@@ -167,11 +182,15 @@ impl TcpClient {
         }
     }
 
-    pub async fn get_node_shared_secret(&self) -> Vec<u8> {
+    pub async fn get_node_shared_secret(
+        &self
+    ) -> Vec<u8> {
         self.node_shared_secret.lock().await.to_vec()
     }
 
-    pub async fn write(&mut self, data: &Vec<u8>) {
+    pub async fn write(
+        &mut self, data: &Vec<u8>
+    ) {
         {
             let mut locked = self.write_half.lock().await;
             if let Some(ref mut writer) = *locked {
@@ -181,22 +200,18 @@ impl TcpClient {
     }
 
     pub async fn shutdown(&mut self) -> Result<(), String> {
-        // 1) signal the listener to stop
         self.stop_flag.store(true, Ordering::Relaxed);
     
-        // 2) take the writer _out_ of the mutex guard, then drop the guard immediately
         let writer_opt = {
             let mut guard = self.write_half.lock().await;
             guard.take()
         };
 
-        // 3) drop/abort/await the listener handle
         if let Some(handle) = self.listener.take() {
             let _ = handle.await;
         }
-        // now the lock is released
+
         if let Some(mut writer) = writer_opt {
-            // and _now_ we await the shutdown of the socket
             let _ = writer.shutdown().await;
         }
 

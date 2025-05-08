@@ -1,3 +1,20 @@
+function waitForTauri() {
+  return new Promise((resolve) => {
+    if (window.__TAURI__.core) {
+      resolve(window.__TAURI__.core);
+    } else {
+      const interval = setInterval(() => {
+        if (window.__TAURI__.core) {
+          clearInterval(interval);
+          resolve(window.__TAURI__.core);
+        }
+      }, 100); // Check every 100ms
+    }
+  });
+}
+
+waitForTauri();// 1000ms = 1 second
+
 const { invoke } = window.__TAURI__.core;
 
 let mnemonicPhrase = null;

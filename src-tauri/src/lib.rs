@@ -7,22 +7,25 @@ use tauri::{AppHandle, Manager as _};
 use tokio::sync::Mutex;
 use sqlx::{migrate::MigrateDatabase, sqlite::SqlitePoolOptions, Pool, Sqlite};
 use network::client::TcpClient;
-mod modules;
+use blake3::Hasher;
+
 mod network;
 mod database;
-mod encryption;
+mod crypto;
 mod utils;
+mod groups;
 
 pub static GLOBAL_STORE: OnceCell<Arc<Mutex<AppHandle>>> = OnceCell::new();
 pub static PROFILE_NAME: once_cell::sync::Lazy<Mutex<String>> = once_cell::sync::Lazy::new(|| Mutex::new(String::new()));
 
 static GLOBAL_CLIENT: Lazy<Mutex<Option<TcpClient>>> = Lazy::new(|| Mutex::new(None));
-static GLOBAL_KEYS: Lazy<Mutex<Option<modules::objects::Keys>>> = Lazy::new(|| Mutex::new(None));
+static GLOBAL_KEYS: Lazy<Mutex<Option<crypto::objects::Keys>>> = Lazy::new(|| Mutex::new(None));
 
 pub static GLOBAL_DB: OnceCell<Pool<Sqlite>> = OnceCell::new();
 
 #[tauri::command]
-async fn terminate_any_client() {
+async fn terminate_any_client(
+) {
     let mut tcp_guard = crate::GLOBAL_CLIENT.lock().await;
                         
     if let Some(tcp_client) = tcp_guard.as_mut() {
@@ -31,11 +34,50 @@ async fn terminate_any_client() {
     }
 }
 
+#[derive(serde::Deserialize)]
+struct FrameData {
+    data: Vec<u8>,
+    _width: usize,
+    _height: usize,
+}
+
 #[tauri::command]
-async fn generate_dilithium_keys(password: &str) -> Result<String, String> {
+async fn handle_frame_rgba(
+    mut frame: FrameData, user_id: String
+) {
+    let mut modified_data = vec![0xF0, 0x00, 0x00, 0x00, 0x00];
+
+    let mut hasher = Hasher::new();
+    hasher.update(&frame.data);
+    let _ = hasher.finalize();
+
+    let dest_id_bytes = hex::decode(user_id).unwrap();
+    
+    modified_data.extend_from_slice(&dest_id_bytes);
+    modified_data.extend_from_slice(&crypto::utils::encrypt_data(&frame.data, &[0u8; 32].to_vec()).await); 
+
+    let total_size = modified_data.len() as u32;
+
+    modified_data[1..5].copy_from_slice(&total_size.to_le_bytes());
+
+    frame.data = modified_data;
+
+    let mut tcp_guard = crate::GLOBAL_CLIENT.lock().await;                   
+
+    if let Some(tcp_client) = tcp_guard.as_mut() {
+        tcp_client.write(&frame.data).await 
+    } else {
+        println!("No existing TCP client found");
+    }
+}
+
+#[tauri::command]
+async fn generate_dilithium_keys(
+    password: &str
+) -> Result<String, String> {
 
     terminate_any_client().await;
-    let keys = encryption::keys::load_keys(password)
+    let keys = crypto::keys::load_keys(password)
         .await
         .map_err(|_| "Failed to load keys".to_string())?;
 
@@ -75,7 +117,9 @@ async fn generate_dilithium_keys(password: &str) -> Result<String, String> {
 }
 
 
-async fn setup_app_state(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+async fn setup_app_state(
+    app: &tauri::AppHandle
+) -> Result<(), Box<dyn std::error::Error>> {
     let db = setup_db(app).await;
     let guarded = Arc::new(Mutex::new(app.clone()));
     GLOBAL_STORE
@@ -84,12 +128,13 @@ async fn setup_app_state(app: &tauri::AppHandle) -> Result<(), Box<dyn std::erro
     GLOBAL_DB
         .set(db.clone())
         .expect("Failed to set global DB. It may have been set already.");
-    app.manage(modules::objects::AppState { db });
     println!("Successfully initialised DB");
     Ok(())
 }
 
-pub async fn setup_db(app: &AppHandle) -> modules::objects::Db {
+pub async fn setup_db(
+    app: &AppHandle
+) -> sqlx::Pool<sqlx::Sqlite> {
     let mut path = app.path().app_data_dir().expect("failed to get data_dir");
     println!("{:?}", &path);
 
@@ -131,6 +176,9 @@ pub fn run() {
             generate_dilithium_keys,
             network::commands::send_message,
             network::commands::establish_ss,
+            network::commands::send_group_message,
+
+            
 
             database::commands::get_chats,
             database::commands::get_messages,
@@ -142,8 +190,12 @@ pub fn run() {
             database::commands::has_shared_secret,
             database::commands::delete_chat,
 
-            encryption::keys::generate_mnemonic,
-            terminate_any_client
+            groups::commands::create_groupe,
+            groups::commands::add_group_member,
+
+            crypto::keys::generate_mnemonic,
+            terminate_any_client,
+            handle_frame_rgba
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();

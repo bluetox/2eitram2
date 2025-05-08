@@ -1,13 +1,21 @@
+use crate::{
+    GLOBAL_DB,
+    crypto::keys
+};
+use super::{
+    objects::*,
+    utils::decrypt_data
+};
+
 use sqlx::Row;
 use bip39::{Mnemonic, Language};
-use crate::GLOBAL_DB;
 use hkdf::Hkdf;
 use sha2::Sha256;
 
 const PBKDF2_ITER : u32 = 2_000;
 
-pub async fn load_keys(password: &str) -> Result<crate::modules::objects::Keys, String> {
-    let key = crate::encryption::keys::generate_pbkdf2_key(password)?;
+pub async fn load_keys(password: &str) -> Result<Keys, String> {
+    let key = keys::generate_pbkdf2_key(password)?;
 
     let current_profile = crate::utils::get_profile_name().await;
     let db = GLOBAL_DB
@@ -32,10 +40,10 @@ pub async fn load_keys(password: &str) -> Result<crate::modules::objects::Keys, 
         println!("Invalid password!");
     }
 
-    let dilithium_public: Vec<u8> = super::utils::decrypt_data(&row.get("dilithium_public"), &key).await?;
-    let dilithium_private: Vec<u8> = super::utils::decrypt_data(&row.get("dilithium_private"), &key).await?;
-    let ed25519: Vec<u8> = super::utils::decrypt_data(&row.get("ed25519"), &key).await?;
-    let nonce: Vec<u8> = super::utils::decrypt_data(&row.get("nonce"), &key).await?;
+    let dilithium_public: Vec<u8> = decrypt_data(&row.get("dilithium_public"), &key).await?;
+    let dilithium_private: Vec<u8> = decrypt_data(&row.get("dilithium_private"), &key).await?;
+    let ed25519: Vec<u8> = decrypt_data(&row.get("ed25519"), &key).await?;
+    let nonce: Vec<u8> = decrypt_data(&row.get("nonce"), &key).await?;
     let _user_id: String = row.get("user_id");
     
     
@@ -47,10 +55,10 @@ pub async fn load_keys(password: &str) -> Result<crate::modules::objects::Keys, 
     d_private_key_array.copy_from_slice(&dilithium_private);
     nonce_array.copy_from_slice(&nonce);
 
-    let dilithium_keypair = pqc_dilithium::Keypair::load(d_public_key_array, d_private_key_array);
-    let ed25519: ring::signature::Ed25519KeyPair = ring::signature::Ed25519KeyPair::from_pkcs8(&ed25519).map_err(|e| e.to_string())?;
+    let dilithium_keypair = DilithiumKeypair::load(d_public_key_array, d_private_key_array);
+    let ed25519: Ed25519KeyPair = Ed25519KeyPair::from_pkcs8(&ed25519).map_err(|e| e.to_string())?;
     
-    let keys = crate::modules::objects::Keys {
+    let keys = super::objects::Keys {
         ed25519_keys: ed25519,
         dilithium_keys: dilithium_keypair,
         nonce: nonce_array,
@@ -96,8 +104,8 @@ pub fn compute_new_secrets(old_secret: &Vec<u8>) -> ([u8; 32], [u8; 32]) {
 }
 
 pub async fn ratchet_forward(s_type: &str, chat_id: &str) -> Result<[u8; 32], String> {
-    let current_secret = crate::database::utils::get_secret(s_type, chat_id).await?;
+    let current_secret = crate::database::private_chat::get_secret(s_type, chat_id).await?;
     let (new_root_secret, message_key) = compute_new_secrets(&current_secret);
-    crate::database::utils::set_new_secret(s_type, chat_id, new_root_secret.to_vec()).await?;
+    crate::database::private_chat::set_new_secret(s_type, chat_id, new_root_secret.to_vec()).await?;
     Ok(message_key)
 }

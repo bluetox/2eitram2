@@ -1,7 +1,64 @@
+function waitForTauri() {
+  return new Promise((resolve) => {
+    if (window.__TAURI__.core) {
+      resolve(window.__TAURI__.core);
+    } else {
+      const interval = setInterval(() => {
+        if (window.__TAURI__.core) {
+          clearInterval(interval);
+          resolve(window.__TAURI__.core);
+        }
+      }, 100); // Check every 100ms
+    }
+  });
+}
+
+waitForTauri();// 1000ms = 1 second
+
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 const { isPermissionGranted, requestPermission, sendNotification, } = window.__TAURI__.notification;
 
+const video          = document.getElementById('videoElement');
+const receivedCanvas = document.getElementById('receivedCanvas');
+const receivedCtx    = receivedCanvas.getContext('2d');
+
+const offscreenCanvas = document.createElement('canvas');
+const ctx             = offscreenCanvas.getContext('2d');
+
+let mediaStream = null;
+let rafId       = null;
+
+const strictConfig = {
+    ALLOWED_TAGS: [
+      'h1','h2','h3','h4','h5','h6',
+      'p','div','span','pre','code','blockquote',
+      'ul','ol','li','dl','dt','dd',
+      'img','a','table','thead','tbody','tfoot','tr','th','td',
+      'br','hr','strong','em','u','s','sub','sup',
+      'small','big','figure','figcaption'
+    ],
+  
+    ALLOWED_ATTR: [
+      'href','title','alt','src','srcset','width','height',
+      'colspan','rowspan','align','valign',
+      'class','style','name'
+    ],
+
+    FORBID_ATTR: [/^on/i, 'id'],
+  
+    ALLOWED_CSS_PROPERTIES: [
+      'color','background-color','font-size','font-weight','font-style',
+      'text-decoration','text-align','margin','padding','border',
+      'width','height','max-width','max-height'
+    ],
+  
+    ALLOWED_URI_REGEXP: /^(?:[#\/][^"\s]*)|(?:data:image\/[a-zA-Z0-9+\/=;,%\-_.]+)$/,
+
+    WHOLE_DOCUMENT: false,
+    SAFE_FOR_TEMPLATES: true
+  };
+  
 let permissionGranted = await isPermissionGranted();
 
 if (!permissionGranted) {
@@ -17,12 +74,11 @@ async function loadExistingChats() {
   const chatItemsContainer = document.getElementById("chatItems");
   chatItemsContainer.innerHTML = "";
   const chatList = await invoke("get_chats");
-  console.log(chatList);
 
   chatList.forEach((chat) => {
     const chatName = chat.chat_name;
-    const userId = chat.dst_user_id;
     const chatId = chat.chat_id;
+    const chatType = chat.chat_type;
 
     const newChat = document.createElement("div");
     newChat.classList.add("chat-item");
@@ -41,9 +97,8 @@ async function loadExistingChats() {
 
     const chatMessageDiv = document.createElement("div");
     chatMessageDiv.classList.add("chat-message");
-    const firstFive = userId.slice(0, 5);
-    const lastFive = userId.slice(-5);
-    chatMessageDiv.textContent = `${firstFive}...${lastFive}`;
+
+    chatMessageDiv.textContent = `user id placeholder`;
 
     chatContent.appendChild(chatNameDiv);
     chatContent.appendChild(chatMessageDiv);
@@ -61,15 +116,21 @@ async function loadExistingChats() {
     newChat.addEventListener("mouseup", () => {
         clearTimeout(timer);
     });
-    newChat.onclick = async () => { 
-      if (await invoke("has_shared_secret", {chatId: chatId}) == true) {
-        openChat(chatName, userId, chatId)
-      }
-      else {
-        await invoke("establish_ss", {dstUserId: userId, chatId: chatId}).then(console.log("did it")); 
-
-      }
-    };
+    if (chatType === "private") {
+      newChat.onclick = async () => { 
+        if (await invoke("has_shared_secret", {chatId: chatId}) == true) {
+          openChat(chatName, chatId, chatType);
+        }
+        else {
+          await invoke("establish_ss", {chatId: chatId}).then(console.log("did it")); 
+  
+        }
+      };
+    } else if (chatType === "group") {
+        newChat.onclick = () => {
+          openChat(chatName, chatId, chatType);
+        };
+    }
     chatItemsContainer.appendChild(newChat);
   });
 }
@@ -79,7 +140,6 @@ async function load_tauri() {
     await invoke("terminate_any_client");
     loadExistingChats();
     await listenForMessages();
-
     document.getElementById("submit-password").addEventListener("click", checkPassword);
     document.getElementById("add-chat").addEventListener("click", openAddChatChoice);
     document.getElementById("back-to-chats").addEventListener("click", closeChat);
@@ -127,6 +187,9 @@ async function checkPassword() {
   document.getElementById("copy-perso-id").addEventListener('click', async () => {
     await navigator.clipboard.writeText(userId);
   })
+  document.getElementById('group-chat').addEventListener('click', async () => {
+    await invoke("create_groupe", {members: ["e29a09f0613616e0eb73d1f22ab561eebe1dc24f979d11fdf95f0f3a3f9bc5ed", "e6935a27bc6ba7780124a6c54da097b78e3585c9fb20ead106b2a5ebd1b60452"], groupName: "other group"})
+  })
   if (password) {
     document.getElementById("passwordOverlay").style.display = "none";
     document.getElementById("container").style.display = "flex";
@@ -136,7 +199,7 @@ async function checkPassword() {
   }
 }
 
-async function openChat(chatName, userId, chatId) {
+async function openChat(chatName, chatId, chatType) {
   document.getElementById("chatTitle").innerText = chatName;
   const chatMessages = document.getElementById("chatMessages");
   chatMessages.innerHTML = "";
@@ -152,21 +215,6 @@ async function openChat(chatName, userId, chatId) {
 
       if (isHTML(message.content)) {
         newMessage.innerHTML = decodeHTMLEntities(message.content);
-
-        try {
-          const button = newMessage.querySelector("button");
-          if (button) {
-            button.addEventListener("click", async () => {
-              await invoke("send_message", {
-                dstIdHexs: userId,
-                messageString: "text"
-              });
-              console.log("Auto-response sent.");
-            });
-          }
-        } catch (err) {
-          console.warn("Button listener error:", err);
-        }
       } else {
         newMessage.innerText = message.content;
       }
@@ -180,28 +228,62 @@ async function openChat(chatName, userId, chatId) {
     console.error(`Failed to load messages for ${chatName}:`, error);
   }
 
-  document.getElementById("send-message-button").onclick = async () => {
-    const input = document.getElementById("chatInput");
-    const message = input.value.trim();
-    if (!message) return;
+  document.getElementById("video-call-button").addEventListener('click', async () => {
+    document.getElementById("video-call-container").style.display = "flex";
+    await startWebcam(chatId);
+  });
+  
+  document.getElementById("exit-chat").addEventListener('click', () => {
+    document.getElementById("video-call-container").style.display = "none";
+    stopWebcam();
+  });
+  if (chatType === "private") {
+    document.getElementById("send-message-button").onclick = async () => {
+      const input = document.getElementById("chatInput");
+      const message = input.value.trim();
+        await invoke("send_message", {
+          chatId: chatId,
+          messageString: message
+        });
+      
+      loadExistingChats();
 
-    await invoke("send_message", {
-      chatId: chatId,
-      dstIdHexs: userId,
-      messageString: message
-    });
-    loadExistingChats();
+      input.value = "";
 
-    input.value = "";
+      const newMessage = document.createElement("div");
+      newMessage.classList.add("message", "message-sent");
+      newMessage.innerText = message;
+      chatMessages.appendChild(newMessage);
 
-    const newMessage = document.createElement("div");
-    newMessage.classList.add("message", "message-sent");
-    newMessage.innerText = message;
-    chatMessages.appendChild(newMessage);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    };
+  } else if (chatType === "group") {
+    document.getElementById("send-message-button").onclick = async () => {
+      const input = document.getElementById("chatInput");
+      const message = input.value.trim();
+        await invoke("send_group_message", {
+          chatId: chatId,
+          message: message
+        });
+        
 
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-  };
+      
+      loadExistingChats();
 
+      input.value = "";
+
+      const newMessage = document.createElement("div");
+      newMessage.classList.add("message", "message-sent");
+      newMessage.addEventListener('click', async () => {
+        const newMember = prompt("Enter new member id:");
+        await invoke("add_group_member", {chatId: chatId, userId: newMember, groupName: chatName})
+      });
+      newMessage.innerText = message;
+      chatMessages.appendChild(newMessage);
+
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    };
+  }
   document.getElementById("container").style.transform = "translateX(-100vw)";
   document.getElementById("bottom-bar").style.transform = "translateX(-100vw)";
 }
@@ -246,7 +328,7 @@ async function listenForMessages() {
 
 function decodeHTMLEntities(html) {
   const txt = document.createElement("textarea");
-  txt.innerHTML = html;
+  txt.innerHTML = DOMPurify.sanitize(html, strictConfig);
   return txt.value;
 }
 
@@ -297,3 +379,109 @@ async function submitNewChat() {
 function openSettings() {
   alert("Settings menu (to be implemented)");
 }
+
+async function startWebcam(userId) {
+  try {
+    const constraints = {
+      video: {
+        width:  { ideal: 1280 },
+        height: { ideal: 720 },
+        facingMode: "user"
+      }
+    };
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    mediaStream = stream;
+    video.srcObject = stream;
+
+    const [track] = stream.getVideoTracks();
+    applyTrackSettings(track);
+
+    track.addEventListener('ended', () => cancelAnimationFrame(rafId));
+    track.addEventListener('mute',  () => cancelAnimationFrame(rafId));
+
+    rafId = requestAnimationFrame(function loop() {
+      captureAndSendFrame(userId);
+      rafId = requestAnimationFrame(loop);
+    });
+  } catch (err) {
+    console.error("Webcam access failed:", err);
+  }
+}
+function stopWebcam() {
+  // 1) Cancel the animation‑frame loop
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+
+  // 2) Stop all tracks on the MediaStream
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(track => track.stop());
+    mediaStream = null;
+  }
+
+  // 3) Un‑bind the video element
+  video.srcObject = null;
+
+  console.log("Webcam stopped.");
+}
+let sending = Promise.resolve();
+function applyTrackSettings(track) {
+  const settings = track.getSettings();
+  offscreenCanvas.width  = settings.width  || video.videoWidth;
+  offscreenCanvas.height = settings.height || video.videoHeight;
+}
+
+async function captureAndSendFrame(userId) {
+  const w = offscreenCanvas.width, h = offscreenCanvas.height;
+  ctx.drawImage(video, 0, 0, w, h);
+
+  let compressionQuality = 0.8;
+  sending = sending.then(() => new Promise(resolve => {
+    offscreenCanvas.toBlob(async blob => {
+      if (!blob) return resolve();
+      const arrayBuffer = await blob.arrayBuffer();
+      const img = new Uint8Array(arrayBuffer);
+
+      // include a counter if you like
+      const header = new Uint32Array([w, h]);
+      const payload = new Uint8Array(8 + img.length);
+      payload.set(new Uint8Array(header.buffer), 0);
+      payload.set(img, 8);
+
+      await invoke("handle_frame_rgba", {
+        frame: { data: Array.from(payload), width: w, height: h, format: "jpeg" },
+        userId
+      });
+      resolve();
+    }, "image/jpeg", compressionQuality);
+  }));
+}
+
+listen("received-video", async (event) => {
+
+  const compressedBytes = event.payload;
+  const uint8Array = new Uint8Array(compressedBytes);
+  const view = new DataView(uint8Array.buffer);
+
+  // ← read little‑endian so we get the right numbers back
+  const w = view.getUint32(0, true);
+  const h = view.getUint32(4, true);
+
+  if (receivedCanvas.width  !== w ||
+    receivedCanvas.height !== h) {
+    receivedCanvas.width  = w;
+    receivedCanvas.height = h;
+  }
+
+  const imageBytes = uint8Array.slice(8);
+  const blob = new Blob([imageBytes], { type: "image/jpeg" });
+
+  if (blob.size === 0) {
+    console.error("No image data at all!");
+    return;
+  }
+
+  const bitmap = await createImageBitmap(blob);
+  receivedCtx.drawImage(bitmap, 0, 0, w, h);
+});
