@@ -1,5 +1,6 @@
 use serde::{Serialize, Deserialize};
 use rand_core::OsRng;
+use crate::secrets::{self, GroupSecrets};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Member {
@@ -33,6 +34,7 @@ impl RatchetTree {
 
     pub fn add_member(
         &mut self,
+        group_secret: &mut GroupSecrets,
         kyber_key: Vec<u8>,
         dilithium_key: Vec<u8>,
         ed25519_key: Vec<u8>,
@@ -50,7 +52,12 @@ impl RatchetTree {
             let new_size = (self.members.len().max(1)).next_power_of_two() * 2;
             self.members.resize_with(new_size, || None);
             self.grow();
-            println!("Tree grew to size {}", new_size);
+
+            group_secret.node_secrets = group_secret.node_secrets
+                .iter()
+                .map(|(index, secret)| (new_index_from_original(*index), secret.clone()))
+                .collect();
+            println!("tree grew to size: {}", new_size);
         }
     
         if self.members[next_available_leaf].is_some() {
@@ -62,13 +69,16 @@ impl RatchetTree {
     
  
         let keys = self.update_member_key_with(next_available_leaf, path_secret);
-
-    
+        for (index, node_secret) in &keys {
+            group_secret.add_node_secret(index.clone(), node_secret.clone());
+        }
+        group_secret.set_root_secret(&keys.last().unwrap().1);
         (next_available_leaf, keys)
     }
 
     pub fn add_member_from_update(
         &mut self, 
+        group_secret: &mut GroupSecrets,
         dilithium_key: Vec<u8>,
         ed25519_key: Vec<u8>,
         kyber_key: Vec<u8>,
@@ -76,12 +86,15 @@ impl RatchetTree {
         secret: Vec<u8>,
         new_index: usize,
         self_index: usize
-    ) -> Vec<(usize, Vec<u8>)> {
+    ) {
         if new_index >= self.members.len() {
             let new_size = (self.members.len().max(1)).next_power_of_two() * 2;
             self.members.resize_with(new_size, || None);
             self.grow();
-            println!("Tree grew to size {}", new_size);
+            group_secret.node_secrets = group_secret.node_secrets
+                .iter()
+                .map(|(index, secret)| (new_index_from_original(*index), secret.clone()))
+                .collect();
         }
         let mut secret= secret;
         let member = Member {
@@ -95,24 +108,26 @@ impl RatchetTree {
     
         let path_self = self.internal_path_indices(self_index);
         let path_new = self.internal_path_indices(new_index);
-    
+        
         if let Some(i) = path_self.iter().position(|n| path_new.contains(n)) {
             let remaining = &path_self[i..];
-            secret = crate::crypto::derive_secret(&secret, "node");
+            println!("remaining: {:?}", remaining);
+            println!("SECRET: {:?}", &secret);
             if remaining.len() == 1 {
-                return vec![(0, secret)];
+                group_secret.add_node_secret(0, secret.clone());
+                group_secret.set_root_secret(&secret);
+                return;
             }
-    
-            let mut secrets = Vec::new();
-            for &ancestor in remaining {
+            for &ancestor in &remaining[..remaining.len() - 1] {
+                println!("derived");
                 secret = crate::crypto::derive_secret(&secret, "node");
-                secrets.push((ancestor, secret.clone()));
+                group_secret.add_node_secret(ancestor, secret.clone());
             }
-            secrets
+            
         } else {
             println!("No common ancestor found");
-            vec![]
         }
+        group_secret.set_root_secret(&secret);
     }
     
     pub fn grow(&mut self) {
@@ -175,7 +190,6 @@ impl RatchetTree {
     pub fn print_all_paths(&mut self) {
         for i in 0..self.members.len() {
             let path = self.internal_path_indices(i);
-            println!("Path: {:?}", path);
         }
     }
 
@@ -215,18 +229,9 @@ impl RatchetTree {
             .find(|(_, m)| m.is_some())
             .map(|(i, _)| i)
     }
-
-    pub fn get_root_from_update(&mut self, updater: usize, self_index: usize, _: Vec<u8>) {
-        let updater_path = self.internal_path_indices(updater);
-        let self_path = self.internal_path_indices(self_index);
-        println!("Updater path: {:?}", updater_path);
-        println!("Self path: {:?}", self_path);
-        let used_keypair = get_used_keypair(&updater_path, &self_path);
-        println!("Used keypair: {}", used_keypair);
-    }
 }
 
-fn descendant_leaves(i: usize, l: usize) -> Vec<usize> {
+pub fn descendant_leaves(i: usize, l: usize) -> Vec<usize> {
     assert!(l.is_power_of_two(), "L must be a power of two");
     assert!(i < l - 1,        "node index must be < L-1");
 
@@ -256,4 +261,21 @@ fn get_used_keypair(updater_path: &[usize], self_path: &[usize]) -> usize {
         }
     }
     self_path[0]
+}
+
+pub fn original_index_from_new(new_index: usize) -> Option<usize> {
+    for i in 0..=new_index {
+        let level = ((i + 1) as f64).log2().floor() as usize;
+        let shift = 1 << level;
+        if i + shift == new_index {
+            return Some(i);
+        }
+    }
+    None
+}
+
+pub fn new_index_from_original(original_index: usize) -> usize {
+    let level = ((original_index + 1) as f64).log2().floor() as usize;
+    let shift = 1 << level;
+    original_index + shift
 }

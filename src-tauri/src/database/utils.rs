@@ -2,16 +2,15 @@ use crate::GLOBAL_DB;
 
 // Save a message from private or group chat
 pub async fn save_message(
-    chat_id: &str, 
-    source_id: &str, 
-    message: &str, 
-    message_type: &str
+    chat_id: &str,
+    source_id: &str,
+    message: &str,
+    message_type: &str,
 ) -> Result<(), String> {
-
     let db = GLOBAL_DB
         .get()
         .ok_or_else(|| "Database not initialized".to_string())?;
-    
+
     let keys_lock = crate::GLOBAL_KEYS.lock().await;
     let keys = keys_lock.as_ref().expect("Keys not initialized");
     let key = &keys.global_key;
@@ -40,4 +39,3 @@ pub async fn save_message(
         .map_err(|e| format!("Error saving todo: {}", e))?;
     Ok(())
 }
-

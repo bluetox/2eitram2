@@ -51,13 +51,9 @@ impl GroupState {
             panic!("Secret must be {} bytes, got {}", SECRET_SIZE, secret.len());
         }
 
-        let (index, secrets) = self.tree.add_member(kyber_key, dilithium_key, ed25519_key, user_id, secret, index);
-        for (index, node_secret) in &secrets {
-            println!("added_node_secret for index: {}", index);
-            self.secrets.add_node_secret(index.clone(), node_secret.clone());
-        }
-        self.secrets.set_root_secret(&secrets.last().unwrap().1);
+        let (index, secrets) = self.tree.add_member(&mut self.secrets, kyber_key, dilithium_key, ed25519_key, user_id, secret, index);
         self.new_epoch();
+
         (index, secrets.last().unwrap().1.clone())
     }
 
@@ -69,7 +65,8 @@ impl GroupState {
         self_index: usize
     ) {
 
-        let keys: Vec<(usize, Vec<u8>)> = self.tree.add_member_from_update(
+        self.tree.add_member_from_update(
+            &mut self.secrets,
             credentials.dilithium_pk, 
             credentials.ed25519_pk, 
             credentials.kyber_pk, 
@@ -79,9 +76,7 @@ impl GroupState {
             self_index
         );
 
-        if let Some((_, root_key)) = keys.iter().find(|(i, _)| *i == 0) {
-            self.secrets.set_root_secret(&root_key);
-        }
+        self.new_epoch();
     }
     
     fn new_epoch(&mut self) {

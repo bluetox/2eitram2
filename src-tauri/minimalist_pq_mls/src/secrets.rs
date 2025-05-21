@@ -22,9 +22,13 @@ impl GroupSecrets {
     }
 
     pub fn add_node_secret(&mut self, index: usize, secret: Vec<u8>) {
-        self.node_secrets.push((index, secret));
+        if let Some((_, existing_secret)) = self.node_secrets.iter_mut().find(|(idx, _)| *idx == index) {
+            *existing_secret = secret;
+        } else {
+            self.node_secrets.push((index, secret));
+        }
     }
-
+    
     pub fn get_node_secret(&self, index: usize) -> Option<&Vec<u8>> {
         self.node_secrets
             .iter()
@@ -36,7 +40,7 @@ impl GroupSecrets {
     }
 
     pub fn set_root_secret(&mut self, secret: &Vec<u8>) {
-        println!("ROOT: {:?}", secret);
+        println!("ROOT: {:?}", &secret[..4]);
         self.root_secret = secret.clone();
     }
     pub fn get_root(&self) -> Vec<u8> {

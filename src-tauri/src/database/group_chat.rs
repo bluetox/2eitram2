@@ -1,14 +1,18 @@
-use rand::rngs::OsRng;
 use minimalist_pq_mls::group::GroupState;
+use rand::rngs::OsRng;
 use sqlx::Row;
 
 pub async fn save_new_created_group(
-    group: GroupState, group_id: &str, group_name: &str, kyber_keys: &safe_pqc_kyber::Keypair, group_owner: &str
-) -> Result<(), String>  {
+    group: GroupState,
+    group_id: &str,
+    group_name: &str,
+    kyber_keys: &safe_pqc_kyber::Keypair,
+    group_owner: &str,
+) -> Result<(), String> {
     let raw = bincode::serialize(&group).unwrap();
     let db = crate::GLOBAL_DB
-    .get()
-    .ok_or_else(|| "Database not initialized".to_string())?;
+        .get()
+        .ok_or_else(|| "Database not initialized".to_string())?;
     let chat_id = uuid::Uuid::new_v4().to_string();
     let current_profile = crate::utils::get_profile_name().await;
     let current_time = chrono::Utc::now().timestamp();
@@ -55,16 +59,20 @@ pub async fn save_new_group(
         SELECT COUNT(*) FROM group_chats gc
         JOIN chats c ON c.chat_id = gc.chat_id
         WHERE gc.group_id = ?1 AND c.chat_profil = ?2
-        "#)
-        .bind(group_id)
-        .bind(&current_profile)
-        .fetch_one(db)
-        .await
-        .map_err(|e| format!("DB error checking for duplicate group: {}", e))?;
+        "#,
+    )
+    .bind(group_id)
+    .bind(&current_profile)
+    .fetch_one(db)
+    .await
+    .map_err(|e| format!("DB error checking for duplicate group: {}", e))?;
 
     if existing > 0 {
         println!("existing");
-        return Err(format!("Group '{}' already exists for profile '{}'", group_id, current_profile));
+        return Err(format!(
+            "Group '{}' already exists for profile '{}'",
+            group_id, current_profile
+        ));
     }
 
     let chat_id = uuid::Uuid::new_v4().to_string();
@@ -106,7 +114,7 @@ pub async fn load_group_from_id(group_id: &str) -> Result<GroupState, String> {
         SELECT gc.group_data FROM group_chats gc
         JOIN chats c ON c.chat_id = gc.chat_id
         WHERE gc.group_id = ?1 AND c.chat_profil = ?2
-        "#
+        "#,
     )
     .bind(group_id)
     .bind(&current_profile)
@@ -138,7 +146,7 @@ pub async fn save_group_state(group: GroupState, group_id: &str) -> Result<(), S
         SELECT gc.chat_id FROM group_chats gc
         JOIN chats c ON c.chat_id = gc.chat_id
         WHERE gc.group_id = ?1 AND c.chat_profil = ?2
-        "#
+        "#,
     )
     .bind(&group_id)
     .bind(&current_profile)
@@ -155,14 +163,12 @@ pub async fn save_group_state(group: GroupState, group_id: &str) -> Result<(), S
     let data = bincode::serialize(&group)
         .map_err(|e| format!("Failed to serialize group state: {}", e))?;
 
-    sqlx::query(
-        "UPDATE group_chats SET group_data = ?1 WHERE chat_id = ?2"
-    )
-    .bind(data)
-    .bind(chat_id)
-    .execute(db)
-    .await
-    .map_err(|e| format!("Failed to update group state: {}", e))?;
+    sqlx::query("UPDATE group_chats SET group_data = ?1 WHERE chat_id = ?2")
+        .bind(data)
+        .bind(chat_id)
+        .execute(db)
+        .await
+        .map_err(|e| format!("Failed to update group state: {}", e))?;
 
     Ok(())
 }
@@ -179,7 +185,7 @@ pub async fn group_sk_from_group_id(group_id: &str) -> Result<(Vec<u8>, Vec<u8>)
         SELECT gc.perso_kyber_secret, gc.perso_kyber_public FROM group_chats gc
         JOIN chats c ON c.chat_id = gc.chat_id
         WHERE gc.group_id = ?1 AND c.chat_profil = ?2
-        "#
+        "#,
     )
     .bind(group_id)
     .bind(current_profile)
@@ -201,18 +207,15 @@ pub async fn group_sk_from_group_id(group_id: &str) -> Result<(Vec<u8>, Vec<u8>)
     }
 }
 
-pub async fn group_from_chat_id(
-    chat_id: &str
-) -> Result<GroupState, String> {
+pub async fn group_from_chat_id(chat_id: &str) -> Result<GroupState, String> {
     let db = crate::GLOBAL_DB
         .get()
         .ok_or_else(|| "Database not initialized".to_string())?;
 
-
     let row = sqlx::query(
         r#"
         SELECT group_data FROM group_chats WHERE chat_id = ?
-        "#
+        "#,
     )
     .bind(chat_id)
     .fetch_optional(db)
@@ -229,4 +232,32 @@ pub async fn group_from_chat_id(
         .map_err(|e| format!("Failed to deserialize group data: {}", e))?;
 
     Ok(group)
+}
+
+pub async fn chat_id_from_group_id(group_id: &str) -> Result<String, String> {
+    let db = crate::GLOBAL_DB
+        .get()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+
+    let current_profile = crate::utils::get_profile_name().await;
+
+    let row = sqlx::query(
+        r#"
+        SELECT gc.chat_id FROM group_chats gc
+        JOIN chats c ON c.chat_id = gc.chat_id
+        WHERE gc.group_id = ?1 AND c.chat_profil = ?2
+        "#,
+    )
+    .bind(group_id)
+    .bind(&current_profile)
+    .fetch_optional(db)
+    .await
+    .map_err(|e| format!("Failed to get chat_id: {}", e))?
+    .ok_or_else(|| "Chat ID not found for this group".to_string())?;
+
+    let chat_id: String = row
+        .try_get("chat_id")
+        .map_err(|e| format!("Failed to extract chat_id: {}", e))?;
+
+    Ok(chat_id)
 }

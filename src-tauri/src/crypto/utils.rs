@@ -46,7 +46,7 @@ pub async fn encrypt_data(data: &[u8], key_buffer: &Vec<u8>) -> Vec<u8> {
 
 pub async fn encrypt_packet(raw_packet: &[u8], key_buffer: &Vec<u8>) -> Vec<u8> {
     let header = &raw_packet[..5];
-    
+
     let encrypted_data = encrypt_data(&raw_packet[5..], key_buffer).await;
     let mut encrypted_packet = bytes::BytesMut::with_capacity(5 + encrypted_data.len());
     encrypted_packet.extend_from_slice(&header);
@@ -105,4 +105,3 @@ pub async fn decrypt_data(
         Err(e) => Err(format!("Decryption failed: {:?}", e)),
     }
 }
-

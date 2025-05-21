@@ -13,7 +13,8 @@ impl Keys {
             &self.dilithium_keys.public[..],
             &self.ed25519_keys.public_key().as_ref()[..],
             &self.nonce[..],
-        ].concat();
+        ]
+        .concat();
         crate::utils::create_user_id_hash(&full_hash_input)
     }
 }

@@ -5,14 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Messenger</title>
   <link rel="stylesheet" href="css/chat.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+
   <script type="module" src="js/chat.js" defer></script>
   <script src="./assets/purify.min.js"></script>
+  
   <meta http-equiv="Content-Security-Policy" content="
+  font-src 'self' https://fonts.gstatic.com;
   default-src 'none';
   base-uri 'none';
   script-src 'none';
   connect-src 'self' http://ipc.localhost;
-  font-src 'self';
   frame-src 'none';
   img-src 'self' data: blob:;
   object-src 'none';
@@ -34,22 +39,65 @@
         <svg id= "parameter-exit" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-3">
           <path fill-rule="evenodd" d="M11.03 3.97a.75.75 0 0 1 0 1.06l-6.22 6.22H21a.75.75 0 0 1 0 1.5H4.81l6.22 6.22a.75.75 0 1 1-1.06 1.06l-7.5-7.5a.75.75 0 0 1 0-1.06l7.5-7.5a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" />
         </svg>
+        <div class="header-name">
+          Parameter
+        </div>
       </div>
       <div class="parameter-buttons">
-        <div class="parameter-button">Privacy and Security</div>
-        <div class="parameter-button">Chat Settings</div>
-    </div>
+        <div class="parameter-button">
+          <div class="parameter-content">
+            <div class="parameter-name">
+              Privacy and Security
+            </div>
+            <div class="parameter-desc">
+              Encryption, Signing...
+            </div>
+          </div>
+        </div>
+        <div class="parameter-button">
+          <div class="parameter-content">
+            <div class="parameter-name">
+              Chat settings
+            </div>
+            <div class="parameter-desc">
+              Theme, mods...
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="parameter-page" id="create-conv-container">
       <div class="parameter-header">
         <svg id= "add-conv-exit" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-3">
           <path fill-rule="evenodd" d="M11.03 3.97a.75.75 0 0 1 0 1.06l-6.22 6.22H21a.75.75 0 0 1 0 1.5H4.81l6.22 6.22a.75.75 0 1 1-1.06 1.06l-7.5-7.5a.75.75 0 0 1 0-1.06l7.5-7.5a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" />
         </svg>
+        <div class="header-name">
+          New message
+        </div>
       </div>
       <div class="parameter-buttons">
-        <div class="parameter-button" id="create-private-chat">Add private chat</div>
-        <div class="parameter-button" id="create-group-chat">Add groupe chat</div>
-    </div>
+        <div class="parameter-button" id="create-private-chat">
+          <div class="parameter-content">
+            <div class="parameter-name">
+              Add private chat
+            </div>
+            <div class="parameter-desc">
+              Chat securely
+            </div>
+          </div>         
+        </div>
+        
+        <div class="parameter-button" id="group-chat">
+          <div class="parameter-content">
+            <div class="parameter-name">
+              Add groupe chat
+            </div>
+            <div class="parameter-desc">
+              Chat with friends
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -57,9 +105,8 @@
     <div class="sidebar" id="sidebar">
       <h2>Cool Guy</h2>
       <h4 id="user-id"></h2>
-        <button id="copy-perso-id">HERE</button>
+        <button id="copy-perso-id">Copy id</button>
       <div class="sidebar-button" id="settings-button">Settings</div>
-      <div class="sidebar-button" id="group-chat">Group Chat</div>
       <div class="sidebar-button" id="disconnect">Disconnect</div>
     </div>
 
