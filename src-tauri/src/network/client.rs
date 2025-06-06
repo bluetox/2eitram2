@@ -31,7 +31,7 @@ impl TcpClient {
 
         let mut stream = TcpStream::connect(format!("{}:{}", NODE_ADDRESS, NODE_PORT))
             .await
-            .map_err(|e| format!("Failed to connect to main node: {}", e))?;
+            .map_err(|e| format!("Failed to connect to main node: {}", e)).unwrap();
 
         let get_nodes_packet = super::packet::create_get_nodes_packet().await;
         stream

@@ -1,5 +1,6 @@
 html {
     overflow-x: hidden;
+    font-family: 'Roboto', sans-serif;
 }
 
 body {
@@ -12,7 +13,6 @@ body {
     -moz-user-select: none;
     -ms-user-select: none;
     user-select: none;
-    font-family: 'Roboto', sans-serif;
 }
 
 .overlay {
@@ -54,7 +54,7 @@ body {
 .container {
     display: flex;
     width: 200vw;
-    height: 100dvh;
+    height: 100%;
     transition: transform 0.4s ease-in-out;
     position: relative;
 }
@@ -197,6 +197,7 @@ body {
 
 .chat-view {
     width: 100vw;
+    height: 100%;
     background-color: #1a1c1e;
     display: flex;
     flex-direction: column;
@@ -210,6 +211,7 @@ body {
     height: 8%;
     display: flex;
     align-items: center;
+    gap: 20px;
     padding: 0 15px;
     font-size: 20px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -270,19 +272,19 @@ body {
     z-index: 102;
 }
 
-
-
 .back-button {
     font-size: 24px;
     cursor: pointer;
     margin-right: 10px;
-    }
+}
+
 .messages {
+    height: 84%;
     background-size: cover;
     background-color: #060509;
     background-position: center;
     background-repeat: no-repeat;
-    flex-grow: 1;
+    flex: 1;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -435,7 +437,6 @@ body {
     transition: transform 0.4s cubic-bezier(0.6, 0.04, 0.98, 0.335);
     z-index: 5;
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.5);
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .sidebar.active {
@@ -577,3 +578,149 @@ body {
 #user-id {
     font-size: 7px;
 } 
+
+.chat-profile_picture {
+    height: 100%;
+    aspect-ratio: 1 / 1; 
+    display: flex;
+    border-radius: 50%;
+    background: linear-gradient(to bottom right, #dcf8c6, #a8e6cf);
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.header-data {
+  display: flex;
+  align-items: center;
+  height: 50%;
+  gap: 12px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+}
+
+.header-data:hover {
+  background-color: #150e27;
+}
+.chat-parameter-page-header {
+    display: flex;
+    height: 8%;
+    width: 100%;
+}
+
+.chat-parameter-page {
+    display: none;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    z-index: 6;
+    background-color: #060509;
+    flex-direction: column;
+}
+
+.chat-parameter-page-top {
+    display: flex;
+    height: 30%;
+    width: 100%;
+    gap: 10%;
+    flex-direction: column;
+}
+
+.chat-parameter-profile {
+    display: flex;
+    height: 60%;
+    width: 100%;
+    flex-direction: column;
+}
+
+.exit-chat-parameter {
+    width: 3rem;
+    margin-left: 20px;
+    height: auto;
+}
+
+.chat-parameter-profile-picture {
+    display: flex;
+    width: 75px;
+    height: 75px;
+    border-radius: 200px;
+    aspect-ratio: 1 / 1; 
+    background: #eb0505;
+    margin-inline: auto;    
+}
+
+.chat-parameter-profile-name {
+    font-size: 30px;
+    margin-top: 5%;
+    font-weight: bold;
+    text-align: center;
+}
+
+.chat-parameters {
+    display: flex;
+    border-top: 1px solid #1a1c1e;
+    width: 100%;
+    flex-grow: 1;
+    flex-direction: column;
+}
+
+.chat-parameter-container {
+    display: flex;
+    width: 100%;
+    height: 12%;
+    flex-direction: row;
+    
+}
+
+.chat-parameter-container-name {
+    font-size: 18px;
+    font-weight: 500;
+    display: flex;    
+    color: #ffffff;
+    align-items: center;
+    justify-content: center;
+}
+
+.chat-parameter-container-icon{
+    display: flex;
+    align-self: center;
+    width: 10%;
+    height: 50%;
+    margin-right: 5%;
+}
+
+.chat-actions {
+    display: flex;
+    border-top: 1px solid #1a1c1e;
+    width: 100%;
+    height: 24%;
+    flex-direction: column; 
+}
+
+.chat-actions-option-container {
+    display: flex;
+    color: red;
+    width: 100%;
+    height: 30%;
+    flex-direction: row; 
+}
+
+.chat-actions-option-icon {
+    display: flex;
+    align-self: center;
+    width: 10%;
+    height: 50%;
+    margin-right: 5%;
+}
+
+.chat-actions-option-name {
+    font-size: 18px;
+    font-weight: 500;
+    display: flex;    
+    align-items: center;
+    justify-content: center;
+}

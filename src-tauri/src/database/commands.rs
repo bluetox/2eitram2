@@ -210,6 +210,10 @@ pub async fn create_private_chat(name: &str, dst_user_id: &str) -> Result<String
 
     let kyber_keys = safe_pqc_kyber::keypair(&mut OsRng, None);
 
+    let mut settings = crate::utils::settings::PrivateChatSettings::default();
+    settings.nickname = name.to_string();
+    let settings_bytes = bincode::serialize(&settings).unwrap();
+    
     sqlx::query("INSERT INTO chats (chat_id, chat_name, chat_type, last_updated, chat_profil) VALUES (?1, ?2, ?3, ?4, ?5)")
         .bind(&chat_id)
         .bind(name)
@@ -220,11 +224,12 @@ pub async fn create_private_chat(name: &str, dst_user_id: &str) -> Result<String
         .await
         .map_err(|e| format!("Error saving chat: {}", e))?;
 
-    sqlx::query("INSERT INTO private_chats (chat_id, dst_user_id, perso_kyber_secret, perso_kyber_public) VALUES (?1, ?2, ?3, ?4)")
+    sqlx::query("INSERT INTO private_chats (chat_id, dst_user_id, perso_kyber_secret, perso_kyber_public, settings) VALUES (?1, ?2, ?3, ?4, ?5)")
         .bind(&chat_id)
         .bind(dst_user_id)
         .bind(kyber_keys.secret.to_vec())
         .bind(kyber_keys.public.to_vec())
+        .bind(settings_bytes)
         .execute(db)
         .await
         .map_err(|e| format!("Error saving chat: {}", e))?;

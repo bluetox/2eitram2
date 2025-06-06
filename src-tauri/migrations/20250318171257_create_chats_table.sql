@@ -15,7 +15,8 @@ CREATE TABLE private_chats (
     shared_secret BLOB,
     perso_kyber_public BLOB,
     perso_kyber_secret BLOB,
-    peer_kyber_public BLOB
+    peer_kyber_public BLOB,
+    settings BLOB
 );
 
 CREATE TABLE group_chats (
@@ -49,3 +50,4 @@ CREATE TABLE profiles (
     password_hash TEXT,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+

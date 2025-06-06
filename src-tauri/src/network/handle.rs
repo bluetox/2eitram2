@@ -139,11 +139,13 @@ pub async fn handle_kyber(buffer: &Vec<u8>) -> Result<(), String> {
         )
         .await
         .unwrap();
+
         let arc_app = crate::GLOBAL_STORE.get().expect("not initialized").clone();
         let app = arc_app.lock().await;
-
-        app.emit("new-chat", {})
-            .map_err(|_| "Failed to emit new chat to webview")?;
+        
+        app.emit("received-invite", &user_id)
+            .map_err(|_| "Failed to emit new chat to webview").unwrap();
+        println!("emitted");
     }
 
     let source_id_bytes = match hex::decode(user_id) {

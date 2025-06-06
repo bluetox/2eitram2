@@ -8,12 +8,12 @@ function waitForTauri() {
           clearInterval(interval);
           resolve(window.__TAURI__.core);
         }
-      }, 100); // Check every 100ms
+      }, 100);
     }
   });
 }
 
-waitForTauri();// 1000ms = 1 second
+waitForTauri();
 
 const { invoke } = window.__TAURI__.core;
 

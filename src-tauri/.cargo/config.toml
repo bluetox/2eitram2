@@ -1,2 +1,26 @@
+# Windows-specific linker flags
 [target.'cfg(target_os = "windows")']
 rustflags = ["-C", "link-args=/STACK:16777216"]
+
+[target.aarch64-linux-android]
+# Tell cargo-ndk / cargo build which ar & linker to use
+ar = "aarch64-linux-android-ar"
+linker = "aarch64-linux-android21-clang"
+rustflags = [
+  # Make sure the final link uses the NDK sysroot
+  "-C", "link-arg=--sysroot=/home/etienne/Android/ndk/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+]
+
+[target.aarch64-linux-android.env]
+# Force Make/CMake-based builds (OpenSSL, aws-lc-sys) to use exactly
+# the aarch64-linux-android tools from your NDK.
+AR                            = "aarch64-linux-android-ar"
+RANLIB                        = "aarch64-linux-android-ranlib"
+CC                            = "aarch64-linux-android21-clang"
+CXX                           = "aarch64-linux-android21-clang++"
+CMAKE_TOOLCHAIN_FILE          = "/home/etienne/Android/ndk/android-ndk-r27c/build/cmake/android.toolchain.cmake"
+CMAKE_SYSTEM_NAME             = "Android"
+CMAKE_ANDROID_ARCH_ABI        = "arm64-v8a"
+CMAKE_ANDROID_NDK             = "/home/etienne/Android/ndk/android-ndk-r27c"
+CMAKE_ANDROID_NDK_TOOLCHAIN_VERSION = "clang"
+CMAKE_ANDROID_API             = "21"

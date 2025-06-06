@@ -11,18 +11,6 @@
 
   <script type="module" src="js/chat.js" defer></script>
   <script src="./assets/purify.min.js"></script>
-  
-  <meta http-equiv="Content-Security-Policy" content="
-  font-src 'self' https://fonts.gstatic.com;
-  default-src 'none';
-  base-uri 'none';
-  script-src 'none';
-  connect-src 'self' http://ipc.localhost;
-  frame-src 'none';
-  img-src 'self' data: blob:;
-  object-src 'none';
-  style-src 'self' 'unsafe-inline';
-">
 
 </head>
 
@@ -130,7 +118,10 @@
     <div class="chat-view" id="chatView">
       <div class="chat-topbar">
         <span class="back-button" id="back-to-chats">⬅</span>
-        <span id="chatTitle">Chat</span>
+        <div class= "header-data" id="header-data">
+          <div class="chat-profile_picture"></div>
+          <span id="chatTitle">Chat</span>
+        </div>
         <svg class="video-call-button" id="video-call-button" xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 24 24"><path fill="currentColor" d="M18 7c0-1.103-.897-2-2-2H4c-1.103 0-2 .897-2 2v10c0 1.103.897 2 2 2h12c1.103 0 2-.897 2-2v-3.333L22 17V7l-4 3.333V7z"/></svg>
       </div>
       <div class="messages" id="chatMessages">
@@ -154,6 +145,69 @@
       <button id="submit-new-chat">Create Chat</button>
     </div>
   </div>
-  
+   <div class="chat-parameter-page" id="chat-parameter-page">
+    <div class="chat-parameter-page-header">
+      <svg class="exit-chat-parameter" id="exit-chat-parameter" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-3">
+          <path fill-rule="evenodd" d="M11.03 3.97a.75.75 0 0 1 0 1.06l-6.22 6.22H21a.75.75 0 0 1 0 1.5H4.81l6.22 6.22a.75.75 0 1 1-1.06 1.06l-7.5-7.5a.75.75 0 0 1 0-1.06l7.5-7.5a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" />
+        </svg>
+    </div>
+    <div class="chat-parameter-page-top">
+      <div class="chat-parameter-profile">
+        <div class="chat-parameter-profile-picture">
+
+        </div>
+        <div class="chat-parameter-profile-name">
+          Neuille name
+        </div>
+      </div>
+    </div>
+    <div class="chat-parameters">
+      <div class="chat-parameter-container">
+        <svg class="chat-parameter-container-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" class="size-6">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42" />
+        </svg>
+        <div class="chat-parameter-container-name">
+          Chat color and wallpaper
+        </div>
+      </div>
+      <div class="chat-parameter-container">
+        <svg class="chat-parameter-container-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+        </svg>
+
+        <div class="chat-parameter-container-name">
+          Nickname
+        </div>
+      </div>
+      <div class="chat-parameter-container">
+        <svg class="chat-parameter-container-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        </svg>
+
+        <div class="chat-parameter-container-name">
+          Message deletion
+        </div>
+      </div>
+    </div>
+    <div class="chat-actions" >
+      <div class="chat-actions-option-container" >
+        <svg class="chat-actions-option-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+        </svg>
+
+        <div class="chat-actions-option-name" >
+          Block
+        </div>
+      </div>
+      <div class="chat-actions-option-container" >
+        <svg class="chat-actions-option-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+        </svg>
+        <div class="chat-actions-option-name" >
+          Delete chat
+        </div>
+      </div>
+    </div>
+   </div>
 </body>
 </html>

@@ -5,9 +5,7 @@ import {decodeHTMLEntities} from './sanitize.js';
 import {receivedCtx} from './video.js';
 
 export async function start_listeners() {
-    listen("new-chat"), async () => {
-        loadExistingChats();
-    }
+
     listenForMessages();
     listen("received-video", async (event) => {
       console.log("received");
@@ -63,3 +61,4 @@ async function listenForMessages() {
     });
   
   }
+

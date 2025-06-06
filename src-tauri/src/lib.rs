@@ -175,6 +175,7 @@ pub fn run() {
             network::commands::send_message,
             network::commands::establish_ss,
             network::commands::send_group_message,
+
             database::commands::get_chats,
             database::commands::get_messages,
             database::commands::set_profile_name,
@@ -183,9 +184,13 @@ pub fn run() {
             database::commands::get_profiles,
             database::commands::has_shared_secret,
             database::commands::delete_chat,
+
             groups::commands::create_groupe,
             groups::commands::add_group_member,
+
             crypto::keys::generate_mnemonic,
+            crate::utils::settings::get_params,
+
             terminate_any_client,
             handle_frame_rgba
         ])

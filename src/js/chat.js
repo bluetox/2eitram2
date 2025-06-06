@@ -15,12 +15,14 @@ function waitForTauri() {
 
 waitForTauri();
 
-import {startWebcam, stopWebcam} from './chat_helpers/video.js';
-import {start_listeners} from './chat_helpers/events.js';
-import {isHTML, decodeHTMLEntities} from './chat_helpers/sanitize.js';
-
+import { startWebcam, stopWebcam } from './chat_helpers/video.js';
+import { start_listeners } from './chat_helpers/events.js';
+import { isHTML, decodeHTMLEntities } from './chat_helpers/sanitize.js';
+import { loadListeners } from './chat_helpers/listener.js';
 
 const { invoke } = window.__TAURI__.core;
+const { listen } = window.__TAURI__.event;
+
 export let currentChatId = null;
 
 export async function loadExistingChats() {
@@ -158,9 +160,16 @@ async function checkPassword() {
 }
 
 async function openChat(chatName, chatId, chatType) {
-  document.getElementById("chatTitle").innerText = chatName;
+  let params = await invoke("get_params", {chatId: chatId});
+  console.log(params);
+  document.getElementById("chatTitle").innerText = params.nickname;
+
   const chatMessages = document.getElementById("chatMessages");
   chatMessages.innerHTML = "";
+
+  document.getElementById("header-data").addEventListener('click', () => {
+    document.getElementById("chat-parameter-page").style.display = 'flex';
+  });
 
   currentChatId = chatId;
 
@@ -170,7 +179,9 @@ async function openChat(chatName, chatId, chatType) {
     messages.forEach((message) => {
       const newMessage = document.createElement("div");
       newMessage.classList.add("message", message.message_type === "sent" ? "message-sent" : "message-received");
-
+      if (message.message_type === "sent") {
+        newMessage.style.backgroundColor = params.bubble_color;
+      }
       if (isHTML(message.content)) {
         newMessage.innerHTML = decodeHTMLEntities(message.content);
       } else {
@@ -211,6 +222,7 @@ async function openChat(chatName, chatId, chatType) {
       const newMessage = document.createElement("div");
       newMessage.classList.add("message", "message-sent");
       newMessage.innerText = message;
+      newMessage.style.backgroundColor = params.bubble_color;
       chatMessages.appendChild(newMessage);
 
       chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -232,6 +244,7 @@ async function openChat(chatName, chatId, chatType) {
 
       const newMessage = document.createElement("div");
       newMessage.classList.add("message", "message-sent");
+      newMessage.style.backgroundColor = params.bubble_color;
       newMessage.addEventListener('click', async () => {
         const newMember = prompt("Enter new member id:");
         await invoke("add_group_member", {chatId: chatId, userId: newMember, groupName: chatName})
@@ -291,3 +304,11 @@ async function submitNewChat() {
 
 load_tauri();
 start_listeners();
+
+listen("received-invite"), async (event) => {
+  console.log(event);
+    loadExistingChats();
+    console.log("received invite");
+}
+
+loadListeners()
